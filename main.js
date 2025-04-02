@@ -1,50 +1,47 @@
-import { Actor } from 'apify';
-import { PuppeteerCrawler } from 'crawlee';
+const { Actor } = require('apify');
+const { PuppeteerCrawler } = require('crawlee');
 
-await Actor.init();
+Actor.main(async () => {
+    const input = await Actor.getInput();
+    const { productUrl } = input;
 
-const input = await Actor.getInput();
-const { productUrl } = input;
+    const crawler = new PuppeteerCrawler({
+        async requestHandler({ page, request, log }) {
+            log.info(`Visiting ${request.url}`);
 
-const crawler = new PuppeteerCrawler({
-    async requestHandler({ page, request, log }) {
-        log.info(`Visiting ${request.url}`);
+            await page.goto(request.url, { waitUntil: 'networkidle2' });
 
-        await page.goto(request.url, { waitUntil: 'networkidle2' });
+            try {
+                const reviewTab = await page.$('#review-count');
+                if (reviewTab) await reviewTab.click();
+                await page.waitForTimeout(3000);
+            } catch (err) {
+                log.warning('Could not click review tab', { error: err.message });
+            }
 
-        // Scroll or click to reveal reviews if needed
-        try {
-            const reviewTab = await page.$('#review-count');
-            if (reviewTab) await reviewTab.click();
-            await page.waitForTimeout(3000);
-        } catch (err) {
-            log.warning('Could not click to show reviews', { error: err.message });
-        }
+            const reviews = await page.$$eval('.review-list-wrap .list > li', (items) => {
+                return items.slice(0, 15).map((el) => {
+                    const name = el.querySelector('.user-name')?.textContent?.trim() || 'Anonymous';
+                    const ratingStyle = el.querySelector('.score .score-star')?.getAttribute('style') || '';
+                    const stars = ratingStyle ? parseInt(ratingStyle.match(/width:\\s*(\\d+)/)?.[1]) / 20 : 0;
+                    const text = el.querySelector('.review-desc')?.textContent?.trim() || '';
+                    const image = el.querySelector('.photo img')?.src || null;
 
-        const reviews = await page.$$eval('.review-list-wrap .list > li', (items) => {
-            return items.slice(0, 15).map((el) => {
-                const name = el.querySelector('.user-name')?.textContent?.trim() || 'Anonymous';
-                const ratingStyle = el.querySelector('.score .score-star')?.getAttribute('style') || '';
-                const stars = ratingStyle ? parseInt(ratingStyle.match(/width:\\s*(\\d+)/)?.[1]) / 20 : 0;
-                const text = el.querySelector('.review-desc')?.textContent?.trim() || '';
-                const image = el.querySelector('.photo img')?.src || null;
-
-                return {
-                    reviewer_name: name,
-                    rating: stars,
-                    review_text: text,
-                    image_url: image,
-                };
+                    return {
+                        reviewer_name: name,
+                        rating: stars,
+                        review_text: text,
+                        image_url: image,
+                    };
+                });
             });
-        });
 
-        await Actor.setValue('OUTPUT', {
-            productUrl: request.url,
-            reviews,
-        });
-    },
+            await Actor.setValue('OUTPUT', {
+                productUrl: request.url,
+                reviews,
+            });
+        },
+    });
+
+    await crawler.run([{ url: productUrl }]);
 });
-
-await crawler.run([{ url: productUrl }]);
-
-await Actor.exit();
