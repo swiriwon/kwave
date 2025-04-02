@@ -5,6 +5,6 @@
     "start": "node main.js"
   },
   "dependencies": {
-    "apify": "^3.16.0"
+    "apify": "^3.3.1"
   }
 }
