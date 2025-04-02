@@ -1,10 +1,10 @@
-const { Actor } = require('apify');
+const Apify = require('apify');
 
-Actor.main(async () => {
-    const input = await Actor.getInput();
+Apify.main(async () => {
+    const input = await Apify.getInput();
     const { productUrl } = input;
 
-    const browser = await Actor.launchPuppeteer();
+    const browser = await Apify.launchPuppeteer(); // ✅ works in 3.3.1
     const page = await browser.newPage();
 
     await page.goto(productUrl, { waitUntil: 'networkidle2' });
@@ -30,6 +30,6 @@ Actor.main(async () => {
         });
     });
 
-    await Actor.setValue('OUTPUT', { productUrl, reviews });
+    await Apify.setValue('OUTPUT', { productUrl, reviews });
     await browser.close();
 });
