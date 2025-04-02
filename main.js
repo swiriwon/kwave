@@ -12,7 +12,6 @@ const crawler = new PuppeteerCrawler({
 
         await page.goto(request.url, { waitUntil: 'networkidle2' });
 
-        // Click the review tab
         await page.click('#review-count');
         await page.waitForTimeout(3000);
 
