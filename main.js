@@ -1,39 +1,19 @@
-const { Actor } = require('apify');
-const { PuppeteerCrawler } = require('crawlee');
+import { Actor } from 'apify';
+import { PuppeteerCrawler } from '@crawlee/puppeteer';
 
-Actor.main(async () => {
-    const input = await Actor.getInput();
-    const { productUrl } = input;
+await Actor.init();
 
-    const crawler = new PuppeteerCrawler({
-        async requestHandler({ page, request, log }) {
-            log.info(`Scraping: ${request.url}`);
+// ⬇️ Get input data from Apify
+const input = await Actor.getInput();
+const startUrls = input?.startUrls || [];
 
-            await page.goto(request.url, { waitUntil: 'domcontentloaded' });
-
-            const reviews = await page.$$eval('.review-list-wrap .list > li', (items) => {
-                return items.slice(0, 15).map((el) => {
-                    const name = el.querySelector('.user-name')?.textContent?.trim() || 'Anonymous';
-                    const ratingStyle = el.querySelector('.score .score-star')?.getAttribute('style') || '';
-                    const stars = ratingStyle.includes('width') ? Math.round(parseInt(ratingStyle.replace(/[^\d]/g, '')) / 20) : 5;
-                    const text = el.querySelector('.review-desc')?.textContent?.trim() || '';
-                    const image = el.querySelector('.photo img')?.src || null;
-
-                    return {
-                        reviewer_name: name,
-                        rating: stars,
-                        review_text: text,
-                        image_url: image,
-                    };
-                });
-            });
-
-            await Actor.setValue('OUTPUT', {
-                productUrl: request.url,
-                reviews,
-            });
-        },
-    });
-
-    await crawler.run([{ url: productUrl }]);
+const crawler = new PuppeteerCrawler({
+    async requestHandler({ page, request }) {
+        console.log(`Scraping: ${request.url}`);
+        // your scraping logic
+    },
 });
+
+// ⬇️ Add requests using valid format
+await crawler.run(startUrls);
+await Actor.exit();
