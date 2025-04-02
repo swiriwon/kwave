@@ -1,10 +1,9 @@
 {
   "name": "oliveyoung-review-scraper",
   "version": "1.0.0",
-  "scripts": {
-    "start": "node main.js"
-  },
+  "type": "module",
   "dependencies": {
-    "apify": "^3.3.1"
+    "apify": "^3.4.0",
+    "crawlee": "^3.13.0"
   }
 }
