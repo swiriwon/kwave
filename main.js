@@ -1,10 +1,10 @@
-const Apify = require('apify');
+const { Actor } = require('apify');
 
-Apify.main(async () => {
-    const input = await Apify.getInput();
+Actor.main(async () => {
+    const input = await Actor.getInput();
     const { productUrl } = input;
 
-    const browser = await Apify.launchPuppeteer();  // ✅ Correct syntax here
+    const browser = await Actor.launchPuppeteer();
     const page = await browser.newPage();
 
     await page.goto(productUrl, { waitUntil: 'networkidle2' });
@@ -17,7 +17,7 @@ Apify.main(async () => {
         return items.slice(0, 15).map((el) => {
             const name = el.querySelector('.user-name')?.textContent?.trim() || 'Anonymous';
             const ratingStyle = el.querySelector('.score .score-star')?.getAttribute('style') || '';
-            const stars = ratingStyle ? parseInt(ratingStyle.match(/width:\\s*(\\d+)/)?.[1]) / 20 : 0;
+            const stars = ratingStyle ? parseInt(ratingStyle.match(/width:\s*(\d+)/)?.[1]) / 20 : 0;
             const text = el.querySelector('.review-desc')?.textContent?.trim();
             const image = el.querySelector('.photo img')?.src || null;
 
@@ -30,6 +30,6 @@ Apify.main(async () => {
         });
     });
 
-    await Apify.setValue('OUTPUT', { productUrl, reviews });
+    await Actor.setValue('OUTPUT', { productUrl, reviews });
     await browser.close();
 });
