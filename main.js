@@ -17,7 +17,7 @@ Actor.main(async () => {
         return items.slice(0, 15).map((el) => {
             const name = el.querySelector('.user-name')?.textContent?.trim() || 'Anonymous';
             const ratingStyle = el.querySelector('.score .score-star')?.getAttribute('style') || '';
-            const stars = ratingStyle ? parseInt(ratingStyle.match(/width:\s*(\d+)/)?.[1]) / 20 : 0;
+            const stars = ratingStyle ? parseInt(ratingStyle.match(/width:\\s*(\\d+)/)?.[1]) / 20 : 0;
             const text = el.querySelector('.review-desc')?.textContent?.trim();
             const image = el.querySelector('.photo img')?.src || null;
 
