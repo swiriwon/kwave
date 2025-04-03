@@ -53,16 +53,6 @@ Actor.main(async () => {
 
                 await page.waitForSelector('.product-detail-wrap', { timeout: 30000 });
 
-                // Click on review tab if exists
-                const reviewTab = await page.$('#tab-reviews');
-                if (reviewTab) {
-                    await reviewTab.click();
-                    await page.waitForTimeout(2000);
-                }
-
-                // Wait for review list to load
-                await page.waitForSelector('.list-product-review-unit, .product-detail-review', { timeout: 10000 });
-
                 // Extract reviews
                 const reviews = await page.evaluate(() => {
                 const reviewElems = document.querySelectorAll('.product-review-unit');
