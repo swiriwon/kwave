@@ -6,7 +6,7 @@ Actor.main(async () => {
     const input = await Actor.getInput();
     const startUrls = input?.startUrls || [];
 
-    log.info('Starting scraper with optimized review extraction...');
+    log.info('Starting scraper with accurate rating logic...');
 
     const crawler = new PuppeteerCrawler({
         maxRequestRetries: 3,
@@ -70,20 +70,12 @@ Actor.main(async () => {
                             ? `https://global.oliveyoung.com${imgEl.src}`
                             : imgEl?.src;
 
-                        // ⭐ Correct star rating using half-stars (left/right)
-                        const stars = (() => {
-                            let score = 0;
-                            const starContainers = el.querySelectorAll('.wrap-icon-star');
-                            starContainers.forEach(star => {
-                                const left = star.querySelector('.icon-star.left.filled');
-                                const right = star.querySelector('.icon-star.right.filled');
-                                if (left) score += 0.5;
-                                if (right) score += 0.5;
-                            });
-                            return score > 0 ? score : null;
-                        })();
+                        // ✅ Accurate star calculation inside the review block only
+                        const leftStars = el.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length;
+                        const rightStars = el.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length;
+                        const stars = (leftStars + rightStars) * 0.5 || null;
 
-                        // 🌟 Feature ratings
+                        // 🌟 Feature-specific ratings
                         const features = {};
                         el.querySelectorAll('.list-review-evlt li').forEach((li) => {
                             const label = li.querySelector('span')?.innerText?.trim();
