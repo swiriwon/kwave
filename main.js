@@ -17,7 +17,7 @@ Actor.main(async () => {
                     const text = el.querySelector('.review-unit-cont-comment')?.innerText?.trim() || null;
                     const name = el.querySelector('.review-write-info-writer')?.innerText?.trim() || null;
                     const date = el.querySelector('.review-write-info-date')?.innerText?.trim() || null;
-                    const stars = el.querySelectorAll('.icon-star.filled').length;
+                    const stars = el.querySelectorAll('.product-review-unit-header .icon-star.filled').length;
                     const image = el.querySelector('img')?.src || null;
 
                     return { name, date, stars, text, image };
