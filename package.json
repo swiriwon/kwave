@@ -1,12 +1,19 @@
 {
   "name": "oliveyoung-review-scraper",
   "version": "1.0.0",
-  "type": "commonjs",
+  "description": "Scrapes up to 10 visible product reviews from OliveYoung.",
+  "main": "main.js",
   "scripts": {
     "start": "node main.js"
   },
   "dependencies": {
     "apify": "^3.4.0",
-    "crawlee": "^3.13.0"
-  }
+    "@crawlee/puppeteer": "^3.13.0",
+    "puppeteer": "21.1.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "kwave.ai",
+  "license": "MIT"
 }
