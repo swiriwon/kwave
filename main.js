@@ -9,13 +9,16 @@ Actor.main(async () => {
         async requestHandler({ page, request }) {
             console.log(`Scraping: ${request.url}`);
 
-            await page.waitForSelector('.list-product-review-unit', { timeout: 60000 });
-
+            await page.waitForSelector('.list-product-review-unit', { visible: true });
+            await page.waitForFunction(() => document.readyState === 'complete');
+            
             // Scroll a bit to trigger rendering (helps with lazy-loaded content)
             await page.evaluate(() => {
                 window.scrollBy(0, window.innerHeight);
             });
-            await page.waitForTimeout(2000); // Give content time to load
+            import { setTimeout } from 'node:timers/promises';
+            // Pause execution for 3 seconds
+            await setTimeout(3000);
 
             const reviews = await page.$$eval('.list-product-review-unit', (elements) => {
                 return elements.slice(0, 10).map((el) => {
