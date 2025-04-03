@@ -9,7 +9,7 @@ Actor.main(async () => {
         async requestHandler({ page, request }) {
             console.log(`Scraping: ${request.url}`);
 
-            await page.waitForSelector('.review_list');
+            await page.waitForSelector('.list-product-review-unit', { timeout: 60000 });
 
             const reviews = await page.$$eval('.review_list .review_cont', (nodes) =>
                 nodes.map((el) => ({
