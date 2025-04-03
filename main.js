@@ -65,33 +65,61 @@ Actor.main(async () => {
 
                 // Extract reviews
                 const reviews = await page.evaluate(() => {
-                    const reviewElems = document.querySelectorAll('.list-product-review-unit, .review-unit, .review-item');
-                    return Array.from(reviewElems).slice(0, 10).map(el => {
-                        const getText = (selArr) => {
-                            for (const sel of selArr) {
-                                const elNode = el.querySelector(sel);
-                                if (elNode?.innerText?.trim()) return elNode.innerText.trim();
-                            }
-                            return null;
-                        };
+                const reviewElems = document.querySelectorAll('.product-review-unit');
+                return Array.from(reviewElems).slice(0, 10).map(el => {
+                    const getText = (selector) => {
+                        const elNode = el.querySelector(selector);
+                        return elNode?.innerText?.trim() || null;
+                    };
+            
+                    const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
+                    const date = getText('.product-review-unit-user-info .review-write-info-date');
+                    const text = getText('.review-unit-cont-comment');
+                    const option = getText('.review-unit-option span');
+            
+                    const imgEl = el.querySelector('.review-unit-media img');
+                    const image = imgEl?.src?.startsWith('/')
+                        ? `https://global.oliveyoung.com${imgEl.src}`
+                        : imgEl?.src;
+            
+                    // Star rating by width style or counting filled icons
+                    let stars = null;
+                    const styleStars = el.querySelector('.review-star-rating .wrap-icon-star[style*="width"]');
+                    if (styleStars) {
+                        const match = styleStars.getAttribute('style')?.match(/width:\s*([\d.]+)%/);
+                        if (match) stars = Math.round((parseFloat(match[1]) / 100) * 5 * 10) / 10;
+                    }
+            
+                    if (!stars) {
+                        const filledStars = el.querySelectorAll('.review-star-rating .wrap-icon-star.filled');
+                        stars = filledStars.length || null;
+                    }
+            
+                    // Feature ratings (Formulation, Coverage, etc.)
+                    const features = {};
+                    el.querySelectorAll('.list-review-evlt li').forEach((li) => {
+                        const label = li.querySelector('span')?.innerText?.trim();
+                        const starCount = li.querySelectorAll('.wrap-icon-star.filled').length;
+                        if (label) features[label] = starCount;
+                    });
+            
+                    const likeCount = getText('.btn-likey-count');
+            
+                    return {
+                        id: `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                        name,
+                        date,
+                        text,
+                        option,
+                        image,
+                        stars,
+                        features,
+                        likeCount,
+                        productUrl: window.location.href
+                    };
+                }).filter(r => r.text);
+            });
 
-                        const name = getText(['.review-write-info-writer', '.review-author', '.user-name']) || 'Anonymous';
-                        const date = getText(['.review-write-info-date', '.review-date', '.date']);
-                        const text = getText(['.review-unit-cont-comment', '.review-unit-cont', '.review-content', '.review-text']);
-                        const imgEl = el.querySelector('.review-unit-media img, .review-image img, .review-photo img');
-                        const image = imgEl?.src?.startsWith('/') ? `https://global.oliveyoung.com${imgEl.src}` : imgEl?.src;
-
-                        let stars = null;
-                        const styleStars = el.querySelector('[style*="width"]');
-                        if (styleStars) {
-                            const match = styleStars.getAttribute('style')?.match(/width:\s*([\d.]+)%/);
-                            if (match) stars = Math.round((parseFloat(match[1]) / 100) * 5 * 10) / 10;
-                        }
-
-                        const id = `review-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-                        return { id, name, date, stars, text, image, productUrl: window.location.href };
-                    }).filter(r => r.text);
-                });
 
                 if (reviews.length > 0) {
                     log.info(`Extracted ${reviews.length} reviews`);
