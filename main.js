@@ -70,17 +70,24 @@ Actor.main(async () => {
                             ? `https://global.oliveyoung.com${imgEl.src}`
                             : imgEl?.src;
 
-                        // ⭐ Correctly scoped star rating
+                        // ⭐ Correct star rating using half-stars (left/right)
                         const stars = (() => {
-                            const ratingBox = el.querySelector('.review-star-rating');
-                            return ratingBox ? ratingBox.querySelectorAll('.wrap-icon-star.filled').length : null;
+                            let score = 0;
+                            const starContainers = el.querySelectorAll('.wrap-icon-star');
+                            starContainers.forEach(star => {
+                                const left = star.querySelector('.icon-star.left.filled');
+                                const right = star.querySelector('.icon-star.right.filled');
+                                if (left) score += 0.5;
+                                if (right) score += 0.5;
+                            });
+                            return score > 0 ? score : null;
                         })();
 
-                        // 🌟 Feature ratings (e.g., Formulation, Coverage)
+                        // 🌟 Feature ratings
                         const features = {};
                         el.querySelectorAll('.list-review-evlt li').forEach((li) => {
                             const label = li.querySelector('span')?.innerText?.trim();
-                            const starCount = li.querySelectorAll('.wrap-icon-star.filled').length;
+                            const starCount = li.querySelectorAll('.wrap-icon-star .icon-star.filled').length * 0.5;
                             if (label) features[label] = starCount;
                         });
 
