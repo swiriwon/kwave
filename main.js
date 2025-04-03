@@ -6,7 +6,7 @@ Actor.main(async () => {
     const input = await Actor.getInput();
     const startUrls = input?.startUrls || [];
 
-    log.info('Starting scraper with accurate rating logic...');
+    log.info('Starting scraper with accurate rating extraction...');
 
     const crawler = new PuppeteerCrawler({
         maxRequestRetries: 3,
@@ -70,10 +70,15 @@ Actor.main(async () => {
                             ? `https://global.oliveyoung.com${imgEl.src}`
                             : imgEl?.src;
 
-                        // ✅ Accurate star calculation inside the review block only
-                        const leftStars = el.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length;
-                        const rightStars = el.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length;
-                        const stars = (leftStars + rightStars) * 0.5 || null;
+                        // ✅ Main star rating logic: scoped to .review-star-rating only
+                        const stars = (() => {
+                            const ratingBox = el.querySelector('.review-star-rating');
+                            if (!ratingBox) return null;
+
+                            const lefts = ratingBox.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length;
+                            const rights = ratingBox.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length;
+                            return (lefts + rights) * 0.5 || null;
+                        })();
 
                         // 🌟 Feature-specific ratings
                         const features = {};
