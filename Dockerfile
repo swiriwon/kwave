@@ -1,18 +1,19 @@
 FROM apify/actor-node-puppeteer-chrome:18-21.1.0
 
-# Create app directory with proper permissions
+# Create the app folder and set permissions
+USER root
+RUN mkdir -p /home/myuser/app && chown -R myuser:myuser /home/myuser/app
+
+# Switch to app folder and user
 WORKDIR /home/myuser/app
 USER myuser
 
-# Copy package.json before installing
+# Copy package files and install only production deps
 COPY package*.json ./
+RUN npm install puppeteer@21.1.1 --quiet --no-optional && npm list || true
 
-# Install packages
-RUN npm install puppeteer@21.1.1 --quiet --no-optional && \
-    npm list || true
-
-# Copy the rest of the app
+# Copy the rest of the app code
 COPY . .
 
-# Set the working directory and default command
+# Start the app
 CMD ["node", "main.js"]
