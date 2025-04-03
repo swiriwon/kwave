@@ -13,12 +13,12 @@ Actor.main(async () => {
             // Wait for the review container to be visible
             await page.waitForSelector('.list-product-review-unit', { visible: true, timeout: 60000 });
 
-            // Optional: Scroll to bottom to trigger full review load
+            // Scroll to bottom to trigger more content load (if needed)
             await page.evaluate(() => {
                 window.scrollBy(0, window.innerHeight);
             });
 
-            // Pause execution for 3 seconds to allow content to load
+            // Wait for reviews to fully load
             await setTimeout(3000);
 
             const reviews = await page.$$eval('.list-product-review-unit', (elements) => {
@@ -28,8 +28,15 @@ Actor.main(async () => {
                     const text = el.querySelector('.review-unit-cont-comment')?.innerText?.trim() || null;
                     const image = el.querySelector('.review-unit-media img')?.src || null;
 
-                    // Count the filled stars in the review header
-                    const stars = el.querySelectorAll('.product-review-unit-header .icon-star.filled').length;
+                    // Extract width from style, e.g., "width: 94%"
+                    const starEl = el.querySelector('.product-review-unit-header .icon-star .filled');
+                    let stars = null;
+
+                    if (starEl && starEl.style?.width) {
+                        const widthStr = starEl.style.width.replace('%', '');
+                        const widthNum = parseFloat(widthStr);
+                        stars = Math.round((widthNum / 20) * 10) / 10; // convert % to star (max 5)
+                    }
 
                     return { name, date, stars, text, image };
                 }).filter(r => r.text);
