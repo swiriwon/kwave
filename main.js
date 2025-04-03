@@ -26,8 +26,8 @@ Actor.main(async () => {
                 ]
             }
         },
-
-        preNavigationHooks: [
+        
+        preNavigationHooks: [  // <-- fixed indentation
             async (crawlingContext, gotoOptions) => {
                 const { page } = crawlingContext;
                 await page.setExtraHTTPHeaders({
@@ -41,7 +41,8 @@ Actor.main(async () => {
                 gotoOptions.timeout = 90000;
                 gotoOptions.waitUntil = 'networkidle2';
             }
-        ],        
+        ],
+        
 
         async requestHandler({ page, request }) {
             log.info(`Processing: ${request.url}`);
