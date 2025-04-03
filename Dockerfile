@@ -1,18 +1,18 @@
-# Use the official Apify base image with Node.js and Puppeteer
 FROM apify/actor-node-puppeteer-chrome:18-21.1.0
 
-# Set the working directory inside the container
-WORKDIR /usr/src/app
+# Create app directory with proper permissions
+WORKDIR /home/myuser/app
+USER myuser
 
-# Copy package.json and package-lock.json
+# Copy package.json before installing
 COPY package*.json ./
 
-# Install project dependencies
-RUN npm install --only=prod --no-optional --quiet && \
+# Install packages
+RUN npm install puppeteer@21.1.1 --quiet --no-optional && \
     npm list || true
 
-# Copy the rest of your application's source code
+# Copy the rest of the app
 COPY . .
 
-# Command to run your application
-CMD ["node", "your-script.js"]
+# Set the working directory and default command
+CMD ["node", "main.js"]
