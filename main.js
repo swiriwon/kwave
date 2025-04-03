@@ -26,8 +26,8 @@ Actor.main(async () => {
                 ]
             }
         },
-        
-        preNavigationHooks: [  // <-- fixed indentation
+
+        preNavigationHooks: [
             async (crawlingContext, gotoOptions) => {
                 const { page } = crawlingContext;
                 await page.setExtraHTTPHeaders({
@@ -42,7 +42,6 @@ Actor.main(async () => {
                 gotoOptions.waitUntil = 'networkidle2';
             }
         ],
-        
 
         async requestHandler({ page, request }) {
             log.info(`Processing: ${request.url}`);
@@ -51,68 +50,59 @@ Actor.main(async () => {
                 await page.setDefaultNavigationTimeout(90000);
                 await page.setDefaultTimeout(60000);
 
-                await page.waitForSelector('.product-review-unit', { timeout: 30000 });
+                // Wait for actual review block
+                await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
-                // Extract reviews
                 const reviews = await page.evaluate(() => {
-                const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
-                return Array.from(reviewElems).slice(0, 10).map(el => {
-                    const getText = (selector) => {
-                        const elNode = el.querySelector(selector);
-                        return elNode?.innerText?.trim() || null;
-                    };
-            
-                    const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
-                    const date = getText('.product-review-unit-user-info .review-write-info-date');
-                    const text = getText('.review-unit-cont-comment');
-                    const option = getText('.review-unit-option span');
-            
-                    const imgEl = el.querySelector('.review-unit-media img');
-                    const image = imgEl?.src?.startsWith('/')
-                        ? `https://global.oliveyoung.com${imgEl.src}`
-                        : imgEl?.src;
-            
-                    // Star rating by width style or counting filled icons
-                    let stars = null;
-                    const styleStars = el.querySelector('.review-star-rating .wrap-icon-star[style*="width"]');
-                    if (styleStars) {
-                        const match = styleStars.getAttribute('style')?.match(/width:\s*([\d.]+)%/);
-                        if (match) stars = Math.round((parseFloat(match[1]) / 100) * 5 * 10) / 10;
-                    }
-            
-                    if (!stars) {
-                        const filledStars = el.querySelectorAll('.review-star-rating .wrap-icon-star.filled');
-                        stars = filledStars.length || null;
-                    }
-            
-                    // Feature ratings (Formulation, Coverage, etc.)
-                    const features = {};
-                    el.querySelectorAll('.list-review-evlt li').forEach((li) => {
-                        const label = li.querySelector('span')?.innerText?.trim();
-                        const starCount = li.querySelectorAll('.wrap-icon-star.filled').length;
-                        if (label) features[label] = starCount;
-                    });
-            
-                    const likeCount = getText('.btn-likey-count');
-            
-                    return {
-                        id: `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                        name,
-                        date,
-                        text,
-                        option,
-                        image,
-                        stars,
-                        features,
-                        likeCount,
-                        productUrl: window.location.href
-                    };
-                }).filter(r => r.text);
-            });
+                    const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
+                    return Array.from(reviewElems).slice(0, 10).map(el => {
+                        const getText = (selector) => {
+                            const elNode = el.querySelector(selector);
+                            return elNode?.innerText?.trim() || null;
+                        };
 
+                        const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
+                        const date = getText('.product-review-unit-user-info .review-write-info-date');
+                        const text = getText('.review-unit-cont-comment');
+                        const option = getText('.review-unit-option span');
+
+                        const imgEl = el.querySelector('.review-unit-media img');
+                        const image = imgEl?.src?.startsWith('/')
+                            ? `https://global.oliveyoung.com${imgEl.src}`
+                            : imgEl?.src;
+
+                        let stars = null;
+                        const filledStars = el.querySelectorAll('.wrap-icon-star.filled');
+                        stars = filledStars.length || null;
+
+                        const features = {};
+                        el.querySelectorAll('.list-review-evlt li').forEach((li) => {
+                            const label = li.querySelector('span')?.innerText?.trim();
+                            const starCount = li.querySelectorAll('.wrap-icon-star.filled').length;
+                            if (label) features[label] = starCount;
+                        });
+
+                        const likeCount = getText('.btn-likey-count');
+
+                        return {
+                            id: `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                            name,
+                            date,
+                            text,
+                            option,
+                            image,
+                            stars,
+                            features,
+                            likeCount,
+                            productUrl: window.location.href
+                        };
+                    }).filter(r => r.text);
+                });
+
+                log.info(`Extracted ${reviews.length} reviews`);
 
                 if (reviews.length > 0) {
-                    log.info(`Extracted ${reviews.length} reviews`);
+                    log.info('First review sample:', JSON.stringify(reviews[0], null, 2));
                     await Actor.pushData(reviews);
                 } else {
                     log.warning('No reviews found on this page');
