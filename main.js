@@ -1,5 +1,6 @@
 const { Actor } = require('apify');
 const { PuppeteerCrawler } = require('@crawlee/puppeteer');
+const { setTimeout } = require('node:timers/promises');
 
 Actor.main(async () => {
     const input = await Actor.getInput();
@@ -9,15 +10,15 @@ Actor.main(async () => {
         async requestHandler({ page, request }) {
             console.log(`Scraping: ${request.url}`);
 
-            await page.waitForSelector('.list-product-review-unit', { visible: true });
-            await page.waitForFunction(() => document.readyState === 'complete');
-            
-            // Scroll a bit to trigger rendering (helps with lazy-loaded content)
+            // Wait for the review container to be visible
+            await page.waitForSelector('.list-product-review-unit', { visible: true, timeout: 60000 });
+
+            // Optional: Scroll to bottom to trigger full review load
             await page.evaluate(() => {
                 window.scrollBy(0, window.innerHeight);
             });
-            import { setTimeout } from 'node:timers/promises';
-            // Pause execution for 3 seconds
+
+            // Pause execution for 3 seconds to allow content to load
             await setTimeout(3000);
 
             const reviews = await page.$$eval('.list-product-review-unit', (elements) => {
@@ -27,11 +28,11 @@ Actor.main(async () => {
                     const text = el.querySelector('.review-unit-cont-comment')?.innerText?.trim() || null;
                     const image = el.querySelector('.review-unit-media img')?.src || null;
 
-                    // Count the number of filled stars only inside this review
-                    const stars = el.querySelectorAll('.icon-star.filled').length;
+                    // Count the filled stars in the review header
+                    const stars = el.querySelectorAll('.product-review-unit-header .icon-star.filled').length;
 
                     return { name, date, stars, text, image };
-                }).filter(r => r.text); // Filter out empty reviews
+                }).filter(r => r.text);
             });
 
             console.log('Extracted Reviews:', reviews);
