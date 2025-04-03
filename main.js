@@ -29,14 +29,14 @@ Actor.main(async () => {
                     const image = el.querySelector('.review-unit-media img')?.src || null;
 
                     // Extract width from style, e.g., "width: 94%"
-                   const starEl = el.querySelector('.product-review-unit-header .icon-star .filled');
+                   const starBar = el.querySelector('.product-review-unit-header .icon-star');
                     let stars = null;
 
-                    if (starEl && starEl.style?.width) {
-                        const widthStr = starEl.style.width.replace('%', '');
-                        const widthNum = parseFloat(widthStr);
-                        stars = Math.round((widthNum / 20) * 10) / 10; // convert % to star (max 5)
-                    }
+                    if (starBar && starBar.style?.width) {
+                    const widthStr = starBar.style.width.replace('%', '');
+                    const widthNum = parseFloat(widthStr);
+                    stars = Math.round((widthNum / 20) * 10) / 10; // 100% width = 5 stars
+                }
 
                     return { name, date, stars, text, image };
                 }).filter(r => r.text);
