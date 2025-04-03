@@ -11,11 +11,11 @@ Actor.main(async () => {
 
             await page.waitForSelector('.list-product-review-unit', { timeout: 60000 });
 
-            // Scroll to bottom to trigger full review load
+            // Scroll a bit to trigger rendering (helps with lazy-loaded content)
             await page.evaluate(() => {
                 window.scrollBy(0, window.innerHeight);
             });
-            await page.waitForTimeout(2000); // Let DOM settle
+            await page.waitForTimeout(2000); // Give content time to load
 
             const reviews = await page.$$eval('.list-product-review-unit', (elements) => {
                 return elements.slice(0, 10).map((el) => {
@@ -24,17 +24,15 @@ Actor.main(async () => {
                     const text = el.querySelector('.review-unit-cont-comment')?.innerText?.trim() || null;
                     const image = el.querySelector('.review-unit-media img')?.src || null;
 
-                    // ONLY count the 5 main stars in the header
-                    const stars = el.querySelectorAll('.product-review-unit-header .icon-star.filled').length;
+                    // Count the number of filled stars only inside this review
+                    const stars = el.querySelectorAll('.icon-star.filled').length;
 
                     return { name, date, stars, text, image };
-                }).filter(r => r.text);
+                }).filter(r => r.text); // Filter out empty reviews
             });
-
 
             console.log('Extracted Reviews:', reviews);
             await Actor.pushData(reviews);
-
         },
     });
 
