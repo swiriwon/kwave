@@ -51,11 +51,11 @@ Actor.main(async () => {
                 await page.setDefaultNavigationTimeout(90000);
                 await page.setDefaultTimeout(60000);
 
-                await page.waitForSelector('.product-detail-wrap', { timeout: 30000 });
+                await page.waitForSelector('.product-review-unit', { timeout: 30000 });
 
                 // Extract reviews
                 const reviews = await page.evaluate(() => {
-                const reviewElems = document.querySelectorAll('.product-review-unit');
+                const reviewElems = document.querySelectorAll('.list-product-review-unit');
                 return Array.from(reviewElems).slice(0, 10).map(el => {
                     const getText = (selector) => {
                         const elNode = el.querySelector(selector);
