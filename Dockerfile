@@ -15,6 +15,6 @@ RUN npm install --quiet --omit=dev --no-optional && \
 
 COPY . .
 
-CMD ["node", "main.js"]
+CMD ["sh", "-c", "NODE_PATH=./node_modules node main.js"]
 
 LABEL com.apify.actBuildId=manual-fix
