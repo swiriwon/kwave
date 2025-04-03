@@ -1,19 +1,18 @@
+# Use the official Apify base image with Node.js and Puppeteer
 FROM apify/actor-node-puppeteer-chrome:18-21.1.0
 
-# Set working directory (Apify actor base image uses /usr/src/app)
+# Set the working directory inside the container
 WORKDIR /usr/src/app
 
-# Copy only package.json for clean install
-COPY package.json package-lock.json* ./
+# Copy package.json and package-lock.json
+COPY package*.json ./
 
-# Fix permission issue
-USER root
+# Install project dependencies
+RUN npm install --only=prod --no-optional --quiet && \
+    npm list || true
 
-# Install puppeteer manually
-RUN npm install puppeteer@21.1.1 --no-optional --quiet
+# Copy the rest of your application's source code
+COPY . .
 
-# Copy the rest of the code
-COPY . ./
-
-# Ensure actor starts correctly
-CMD ["npm", "start"]
+# Command to run your application
+CMD ["node", "your-script.js"]
