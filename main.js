@@ -10,7 +10,12 @@ Actor.main(async () => {
             console.log(`Scraping: ${request.url}`);
 
             await page.waitForSelector('.list-product-review-unit', { timeout: 60000 });
-            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Scroll to bottom to trigger full review load
+            await page.evaluate(() => {
+                window.scrollBy(0, window.innerHeight);
+            });
+            await page.waitForTimeout(2000); // Let DOM settle
 
             const reviews = await page.$$eval('.list-product-review-unit', (elements) => {
                 return elements.slice(0, 10).map((el) => {
