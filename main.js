@@ -10,7 +10,7 @@ Actor.main(async () => {
             console.log(`Scraping: ${request.url}`);
 
             await page.waitForSelector('.list-product-review-unit', { timeout: 60000 });
-            await Actor.sleep(2000);
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
             const reviews = await page.$$eval('.list-product-review-unit', (elements) => {
                 return elements.map((el) => {
