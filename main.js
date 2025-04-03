@@ -8,17 +8,17 @@ Actor.main(async () => {
 
     const crawler = new PuppeteerCrawler({
         async requestHandler({ page, request }) {
-            console.log(`Scraping: ${request.url}`);
+            console.log(Scraping: ${request.url});
 
             // Wait for the review container to be visible
             await page.waitForSelector('.list-product-review-unit', { visible: true, timeout: 60000 });
 
-            // Scroll to bottom to trigger more content load (if needed)
+            // Optional: Scroll to bottom to trigger full review load
             await page.evaluate(() => {
                 window.scrollBy(0, window.innerHeight);
             });
 
-            // Wait for reviews to fully load
+            // Pause execution for 3 seconds to allow content to load
             await setTimeout(3000);
 
             const reviews = await page.$$eval('.list-product-review-unit', (elements) => {
@@ -29,7 +29,7 @@ Actor.main(async () => {
                     const image = el.querySelector('.review-unit-media img')?.src || null;
 
                     // Extract width from style, e.g., "width: 94%"
-                    const starEl = el.querySelector('.product-review-unit-header .icon-star .filled');
+                   const starEl = el.querySelector('.product-review-unit-header .icon-star .filled');
                     let stars = null;
 
                     if (starEl && starEl.style?.width) {
