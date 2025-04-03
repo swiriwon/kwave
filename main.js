@@ -55,7 +55,7 @@ Actor.main(async () => {
 
                 // Extract reviews
                 const reviews = await page.evaluate(() => {
-                const reviewElems = document.querySelectorAll('.list-product-review-unit');
+                const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                 return Array.from(reviewElems).slice(0, 10).map(el => {
                     const getText = (selector) => {
                         const elNode = el.querySelector(selector);
