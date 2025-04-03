@@ -50,7 +50,6 @@ Actor.main(async () => {
                 await page.setDefaultNavigationTimeout(90000);
                 await page.setDefaultTimeout(60000);
 
-                // Wait for actual review block
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
                 const reviews = await page.evaluate(() => {
@@ -102,7 +101,6 @@ Actor.main(async () => {
                 log.info(`Extracted ${reviews.length} reviews`);
 
                 if (reviews.length > 0) {
-                    log.info('First review sample:', JSON.stringify(reviews[0], null, 2));
                     await Actor.pushData(reviews);
                 } else {
                     log.warning('No reviews found on this page');
