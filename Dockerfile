@@ -1,14 +1,16 @@
-FROM apify/actor-node-puppeteer-chrome:16-21.1.1
+FROM apify/actor-node-puppeteer-chrome
 
-# Set the working directory inside the container
-WORKDIR /app
+# Set the working directory
+WORKDIR /usr/src/app
 
-# Copy your application files into the container
-COPY . ./
+# Copy package.json and package-lock.json
+COPY package*.json ./
 
-# Install dependencies
-RUN npm install --quiet --only=prod --no-optional \
-    && (npm list || true)
+# Install dependencies with the specific Puppeteer version
+RUN npm install puppeteer@21.1.1
 
-# Specify the command to run your application
-CMD ["node", "main.js"]
+# Copy the rest of your application code
+COPY . .
+
+# Command to run your application
+CMD ["node", "your-script.js"]
