@@ -8,7 +8,7 @@ Actor.main(async () => {
 
     const crawler = new PuppeteerCrawler({
         async requestHandler({ page, request }) {
-            console.log(Scraping: ${request.url});
+            console.log(`Scraping: ${request.url}`);
 
             // Wait for the review container to be visible
             await page.waitForSelector('.list-product-review-unit', { visible: true, timeout: 60000 });
