@@ -10,15 +10,23 @@ Actor.main(async () => {
             console.log(`Scraping: ${request.url}`);
 
             await page.waitForSelector('.list-product-review-unit', { timeout: 60000 });
+            await page.waitForTimeout(2000);
 
-            const reviews = await page.$$eval('.review_list .review_cont', (nodes) =>
-                nodes.map((el) => ({
-                    text: el.innerText,
-                }))
-            );
+            const reviews = await page.$$eval('.list-product-review-unit', (elements) => {
+                return elements.map((el) => {
+                    const text = el.querySelector('.review-unit-cont-comment')?.innerText?.trim() || null;
+                    const name = el.querySelector('.review-write-info-writer')?.innerText?.trim() || null;
+                    const date = el.querySelector('.review-write-info-date')?.innerText?.trim() || null;
+                    const stars = el.querySelectorAll('.icon-star.filled').length;
+                    const image = el.querySelector('img')?.src || null;
+
+                    return { name, date, stars, text, image };
+                }).filter(r => r.text);
+            });
 
             console.log('Extracted Reviews:', reviews);
-            await Actor.pushData({ url: request.url, reviews });
+            await Actor.pushData(reviews);
+
         },
     });
 
