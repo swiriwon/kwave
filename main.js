@@ -1,32 +1,26 @@
-import { Actor } from 'apify';
-import { PuppeteerCrawler } from '@crawlee/puppeteer';
+const { Actor } = require('apify');
+const { PuppeteerCrawler } = require('@crawlee/puppeteer');
 
-await Actor.init();
+Actor.main(async () => {
+    const input = await Actor.getInput();
+    const startUrls = input?.startUrls || [];
 
-// Get input from Apify (JSON input from input tab)
-const input = await Actor.getInput();
-const startUrls = input?.startUrls || [];
+    const crawler = new PuppeteerCrawler({
+        async requestHandler({ page, request }) {
+            console.log(`Scraping: ${request.url}`);
 
-const crawler = new PuppeteerCrawler({
-    async requestHandler({ page, request }) {
-        console.log(`Scraping: ${request.url}`);
+            await page.waitForSelector('.review_list');
 
-        // Wait for reviews section
-        await page.waitForSelector('.review_list'); // example selector
+            const reviews = await page.$$eval('.review_list .review_cont', (nodes) =>
+                nodes.map((el) => ({
+                    text: el.innerText,
+                }))
+            );
 
-        // Extract reviews (modify as needed)
-        const reviews = await page.$$eval('.review_list .review_cont', (nodes) =>
-            nodes.map((el) => ({
-                text: el.innerText,
-            }))
-        );
+            console.log('Extracted Reviews:', reviews);
+            await Actor.pushData({ url: request.url, reviews });
+        },
+    });
 
-        console.log('Extracted Reviews:', reviews);
-
-        // You can also save data
-        await Actor.pushData({ url: request.url, reviews });
-    },
+    await crawler.run(startUrls);
 });
-
-await crawler.run(startUrls);
-await Actor.exit();
