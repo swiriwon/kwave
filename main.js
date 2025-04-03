@@ -20,8 +20,7 @@ Actor.main(async () => {
                     const image = el.querySelector('.review-unit-media img')?.src || null;
 
                     // ONLY count the 5 main stars in the header
-                    const starBlock = el.querySelector('.product-review-unit-header .review-star-rating');
-                    const stars = starBlock ? starBlock.querySelectorAll('.icon-star.filled').length : 0;
+                    const stars = el.querySelectorAll('.product-review-unit-header .icon-star.filled').length;
 
                     return { name, date, stars, text, image };
                 }).filter(r => r.text);
