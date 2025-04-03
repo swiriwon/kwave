@@ -70,10 +70,13 @@ Actor.main(async () => {
                             ? `https://global.oliveyoung.com${imgEl.src}`
                             : imgEl?.src;
 
-                        let stars = null;
-                        const filledStars = el.querySelectorAll('.wrap-icon-star.filled');
-                        stars = filledStars.length || null;
+                        // ⭐ Correctly scoped star rating
+                        const stars = (() => {
+                            const ratingBox = el.querySelector('.review-star-rating');
+                            return ratingBox ? ratingBox.querySelectorAll('.wrap-icon-star.filled').length : null;
+                        })();
 
+                        // 🌟 Feature ratings (e.g., Formulation, Coverage)
                         const features = {};
                         el.querySelectorAll('.list-review-evlt li').forEach((li) => {
                             const label = li.querySelector('span')?.innerText?.trim();
