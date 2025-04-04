@@ -6,12 +6,12 @@ Actor.main(async () => {
     const searchTerm = input?.searchTerm;
     const productHandle = input?.productHandle;
     const shopDomain = input?.shopDomain || 'https://kwave.ai';
-    const shopProductUrl = `${shopDomain}/products/${productHandle}`;
 
     if (!searchTerm || !productHandle) {
         throw new Error('Missing required input: "searchTerm" or "productHandle"');
     }
 
+    const shopProductUrl = `${shopDomain}/products/${productHandle}`;
     const allReviews = [];
 
     const generateFakeName = (maskedName) => {
@@ -38,41 +38,25 @@ Actor.main(async () => {
 
         async requestHandler({ page }) {
             try {
-                // Step 1: Search on OliveYoung
+                // Step 1: Search for product
                 const searchUrl = `https://global.oliveyoung.com/display/search?query=${searchTerm}`;
                 await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
-                // Step 2: Find best matching product by fuzzy word match
-                const productLink = await page.evaluate((term) => {
-                    const keywords = term.toLowerCase().split(/[\s\-]+/);
-                    const items = Array.from(document.querySelectorAll('.prd_info a.name'));
-                    let bestMatch = null;
-                    let highestScore = 0;
-
-                    for (const item of items) {
-                        const title = item.textContent.trim().toLowerCase();
-                        const score = keywords.reduce((acc, word) => {
-                            return acc + (title.includes(word) ? 1 : 0);
-                        }, 0);
-
-                        if (score > highestScore) {
-                            highestScore = score;
-                            bestMatch = item.href;
-                        }
-                    }
-
-                    return bestMatch;
-                }, searchTerm);
+                // Step 2: Select first search result
+                const productLink = await page.evaluate(() => {
+                    return document.querySelector('.prd_info a.name')?.href || null;
+                });
 
                 if (!productLink) {
                     log.warning('No matching product found');
                     return;
                 }
 
+                // Step 3: Open product page and wait for reviews
                 await page.goto(productLink, { waitUntil: 'networkidle2', timeout: 60000 });
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
-                // Step 3: Extract reviews
+                // Step 4: Extract reviews
                 const reviews = await page.evaluate(() => {
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     return Array.from(reviewElems).slice(0, 10).map(el => {
