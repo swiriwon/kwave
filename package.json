@@ -1,15 +1,18 @@
 {
-  "name": "oliveyoung-review-scraper",
+  "name": "kwave",
   "version": "1.0.0",
-  "description": "Scraper for OliveYoung product reviews",
+  "description": "Crawler to scrape OliveYoung product reviews",
   "main": "main.js",
   "type": "module",
+  "dependencies": {
+    "apify": "^3.4.0",
+    "puppeteer-core": "^19.0.0",
+    "csv-writer": "^1.6.0"
+  },
+  "devDependencies": {},
   "scripts": {
     "start": "node main.js"
   },
-  "dependencies": {
-    "apify": "^3.4.0",
-    "slugify": "^1.6.0",
-    "puppeteer": "21.1.1"
-  }
+  "author": "",
+  "license": "ISC"
 }
