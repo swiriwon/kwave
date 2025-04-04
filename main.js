@@ -1,106 +1,122 @@
-import { createObjectCsvWriter } from 'csv-writer';
-import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
+import { Actor } from 'apify';
+import { PuppeteerCrawler, log, Dataset } from '@crawlee/puppeteer';
 
-// Define the output folder and CSV writer
-const outputFolder = './output'; // Ensure this folder exists
+await Actor.init();
 
-const csvWriter = createObjectCsvWriter({
-    path: `${outputFolder}/scraping_data_${new Date().toISOString().split('T')[0]}.csv`,
-    header: [
-        { id: 'title', title: 'Title' },
-        { id: 'body', title: 'Body' },
-        { id: 'rating', title: 'Rating' },
-        { id: 'review_date', title: 'Review Date' },
-        { id: 'reviewer_name', title: 'Reviewer Name' },
-        { id: 'reviewer_email', title: 'Reviewer Email' },
-        { id: 'product_url', title: 'Product URL' },
-        { id: 'picture_urls', title: 'Picture URLs' },
-        { id: 'product_id', title: 'Product ID' },
-        { id: 'product_handle', title: 'Product Handle' }
-    ]
-});
+const input = await Actor.getInput();
+const startUrls = input?.startUrls || [];
+
+log.info('Starting scraper...');
 
 const crawler = new PuppeteerCrawler({
+    maxRequestRetries: 3,
+    requestHandlerTimeoutSecs: 120,
+    navigationTimeoutSecs: 90,
+
     launchContext: {
         launchOptions: {
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--window-size=1280,1024',
+                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            ]
         }
     },
-    requestHandler: async ({ page, request }) => {
+
+    preNavigationHooks: [
+        async (context, gotoOptions) => {
+            const { page } = context;
+            await page.setExtraHTTPHeaders({
+                'Accept-Language': 'en-US,en;q=0.9',
+            });
+            gotoOptions.timeout = 90000;
+            gotoOptions.waitUntil = 'networkidle2';
+        }
+    ],
+
+    async requestHandler({ page, request, enqueueLinks }) {
         log.info(`Processing: ${request.url}`);
 
-        try {
-            // Step 1: Search for the product by name
-            await page.goto(request.url);
-            await page.waitForSelector('.product-list'); // Wait for the product list to load
+        if (request.label === 'DETAIL') {
+            // 🟢 Scrape reviews from product detail page
+            try {
+                await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
-            // Step 2: Extract product ID
-            const productIds = await page.evaluate(() => {
-                const products = Array.from(document.querySelectorAll('.product-item'));
-                return products.map(product => {
-                    const productLink = product.querySelector('a');
-                    return productLink ? productLink.href.split('prdtNo=')[1] : null;
-                }).filter(id => id !== null);
-            });
-
-            if (productIds.length > 0) {
-                // Step 3: Construct final product URL with ID and scrape reviews
-                const finalProductUrl = `https://global.oliveyoung.com/product/detail?prdtNo=${productIds[0]}`;
-                log.info(`Found product with ID: ${productIds[0]}`);
-                await page.goto(finalProductUrl);
-
-                // Wait for the reviews section to load
-                await page.waitForSelector('.product-review-unit.isChecked', { timeout: 60000 });
-
-                // Extract reviews
                 const reviews = await page.evaluate(() => {
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
-                    return Array.from(reviewElems).map(el => {
-                        const getText = (selector) => {
-                            const elNode = el.querySelector(selector);
-                            return elNode ? elNode.innerText.trim() : '';
-                        };
+                    return Array.from(reviewElems).slice(0, 10).map(el => {
+                        const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
 
-                        const title = getText('.product-review-title') || 'No Title';
-                        const body = getText('.review-unit-cont-comment') || 'No Comment';
-                        const rating = parseFloat(getText('.review-star-rating .filled')) || 0;
-                        const review_date = getText('.review-write-info-date') || 'Unknown Date';
-                        const reviewer_name = getText('.review-write-info-writer') || 'Anonymous';
-                        const reviewer_email = 'anonymous@kwave.ai'; // Placeholder email
-                        const picture_urls = Array.from(el.querySelectorAll('.review-unit-media img')).map(img => img.src).join(',');
+                        const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
+                        const date = getText('.product-review-unit-user-info .review-write-info-date');
+                        const text = getText('.review-unit-cont-comment');
+                        const option = getText('.review-unit-option span');
+                        const image = (() => {
+                            const imgEl = el.querySelector('.review-unit-media img');
+                            if (!imgEl) return null;
+                            return imgEl.src.startsWith('/')
+                                ? `https://global.oliveyoung.com${imgEl.src}`
+                                : imgEl.src;
+                        })();
+                        const stars = (() => {
+                            const box = el.querySelector('.review-star-rating');
+                            const lefts = box?.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length || 0;
+                            const rights = box?.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length || 0;
+                            return (lefts + rights) * 0.5 || null;
+                        })();
+                        const features = {};
+                        el.querySelectorAll('.list-review-evlt li').forEach(li => {
+                            const label = li.querySelector('span')?.innerText?.trim();
+                            const count = li.querySelectorAll('.wrap-icon-star .icon-star.filled').length * 0.5;
+                            if (label) features[label] = count;
+                        });
+
+                        const likeCount = getText('.btn-likey-count');
 
                         return {
-                            title,
-                            body,
-                            rating,
-                            review_date,
-                            reviewer_name,
-                            reviewer_email,
-                            product_url: window.location.href,
-                            picture_urls,
-                            product_id: window.location.href.split('prdtNo=')[1],
-                            product_handle: window.location.href.split('/').pop() // Handle extracted from the URL
+                            id: `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                            name,
+                            date,
+                            text,
+                            option,
+                            image,
+                            stars,
+                            features,
+                            likeCount,
+                            productUrl: window.location.href
                         };
-                    });
+                    }).filter(r => r.text);
                 });
 
-                // Save reviews to CSV
-                await csvWriter.writeRecords(reviews);
-                log.info('Reviews saved to CSV');
-            } else {
-                log.warning('No products found on this page');
+                log.info(`Extracted ${reviews.length} reviews`);
+                await Actor.pushData(reviews);
+            } catch (err) {
+                log.error(`Failed to extract reviews: ${err.message}`);
             }
-        } catch (error) {
-            log.error(`Scraping failed: ${error.message}`);
+
+        } else {
+            // 🟡 Search page – extract detail page URL and enqueue it
+            const productUrl = await page.evaluate(() => {
+                const linkEl = document.querySelector('.prdt-unit a[href*="/product/detail?prdtNo="]');
+                return linkEl ? linkEl.href : null;
+            });
+
+            if (productUrl) {
+                log.info(`Found 1 product links, enqueuing...`);
+                await enqueueLinks({
+                    urls: [productUrl],
+                    label: 'DETAIL'
+                });
+            } else {
+                log.warning('No product detail link found on search page.');
+            }
         }
     }
 });
 
-// Add the search URLs for the products to scrape
-crawler.addRequests([
-    { url: 'https://global.oliveyoung.com/display/search?query=Medicube%20PDRN%20Pink%20Peptide%20Ampoule%2030ml%20Double%20Pack' },
-    { url: 'https://global.oliveyoung.com/display/search?query=Green%20Finger%20Forest%20Multi%20Defense%20Sun%20Stick%2019g' }
-]);
-
-await crawler.run();
+await crawler.run(startUrls);
+await Actor.exit();
