@@ -1,10 +1,7 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile } from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 Actor.main(async () => {
     const input = await Actor.getInput();
@@ -40,25 +37,9 @@ Actor.main(async () => {
                 gotoOptions.waitUntil = 'networkidle2';
             }
         ],
-        async requestHandler({ page, request, crawler }) {
+        async requestHandler({ page, request }) {
             log.info(`Processing: ${request.url}`);
-            const isSearchPage = request.url.includes('/display/search');
 
-            if (isSearchPage) {
-                await page.waitForSelector('.prdt-unit', { timeout: 30000 });
-
-                const productLinks = await page.$$eval('.prdt-unit a', links =>
-                    [...new Set(links.map(link => link.href).filter(href => href.includes('/product/detail')))]
-                );
-
-                log.info(`Found ${productLinks.length} product links, enqueuing...`);
-                for (const link of productLinks) {
-                    await crawler.addRequests([link]);
-                }
-                return;
-            }
-
-            // Product page logic
             await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
             const reviews = await page.evaluate(() => {
@@ -73,6 +54,7 @@ Actor.main(async () => {
                     const date = getText('.product-review-unit-user-info .review-write-info-date');
                     const text = getText('.review-unit-cont-comment');
                     const option = getText('.review-unit-option span');
+
                     const imgEl = el.querySelector('.review-unit-media img');
                     const image = imgEl?.src?.startsWith('/')
                         ? `https://global.oliveyoung.com${imgEl.src}`
@@ -112,12 +94,11 @@ Actor.main(async () => {
             log.info(`Extracted ${reviews.length} reviews`);
             if (reviews.length) {
                 const outputPath = path.join('/mnt/data', `reviews-${Date.now()}.json`);
-                await mkdir(path.dirname(outputPath), { recursive: true });
                 await writeFile(outputPath, JSON.stringify(reviews, null, 2));
-                await Actor.pushData(reviews);
                 log.info(`Saved to: ${outputPath}`);
+                await Actor.pushData(reviews);
             } else {
-                log.warning('No reviews found on product page');
+                log.warning('No reviews found');
             }
         }
     });
