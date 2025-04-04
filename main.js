@@ -1,5 +1,5 @@
 const { Actor } = require('apify');
-const { PuppeteerCrawler, Dataset, log } = require('crawlee');
+const { PuppeteerCrawler, log } = require('@crawlee/puppeteer');
 const fs = require('fs');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const slugify = require('slugify');
