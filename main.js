@@ -1,5 +1,7 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log, Dataset } from '@crawlee/puppeteer';
+import { writeFile } from 'fs';
+import { getRandomName } from './fakeNameGenerator'; // Assuming this is a utility to generate random names.
 
 await Actor.init();
 
@@ -51,7 +53,7 @@ const crawler = new PuppeteerCrawler({
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
 
-                        const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
+                        const name = getText('.product-review-unit-user-info .review-write-info-writer') || getRandomName(); // Fake name if not available
                         const date = getText('.product-review-unit-user-info .review-write-info-date');
                         const text = getText('.review-unit-cont-comment');
                         const option = getText('.review-unit-option span');
@@ -78,22 +80,47 @@ const crawler = new PuppeteerCrawler({
                         const likeCount = getText('.btn-likey-count');
 
                         return {
-                            id: `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                            name,
-                            date,
-                            text,
-                            option,
-                            image,
-                            stars,
-                            features,
-                            likeCount,
-                            productUrl: window.location.href
+                            title: name,  // Use name as title (as there is no title in OliveYoung reviews)
+                            body: text,
+                            rating: stars,
+                            review_date: date,
+                            reviewer_name: name,
+                            reviewer_email: 'fake-email@kwave.com', // You can replace this with a generator if needed
+                            product_url: window.location.href,
+                            picture_urls: image,
+                            product_id: window.location.href.split('prdtNo=')[1], // Assuming prdtNo is in the URL
+                            product_handle: window.location.href.split('prdtNo=')[1] // You can modify the logic if needed
                         };
                     }).filter(r => r.text);
                 });
 
                 log.info(`Extracted ${reviews.length} reviews`);
-                await Actor.pushData(reviews);
+
+                // Save the reviews to a CSV file
+                const currentDate = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+                const fileName = `scraping_data_${currentDate}.csv`; // Save with the desired filename
+                const filePath = `/home/myuser/app/output/${fileName}`;
+
+                const csv = require('csv-writer').createObjectCsvWriter({
+                    path: filePath,
+                    header: [
+                        { id: 'title', title: 'title' },
+                        { id: 'body', title: 'body' },
+                        { id: 'rating', title: 'rating' },
+                        { id: 'review_date', title: 'review_date' },
+                        { id: 'reviewer_name', title: 'reviewer_name' },
+                        { id: 'reviewer_email', title: 'reviewer_email' },
+                        { id: 'product_url', title: 'product_url' },
+                        { id: 'picture_urls', title: 'picture_urls' },
+                        { id: 'product_id', title: 'product_id' },
+                        { id: 'product_handle', title: 'product_handle' }
+                    ]
+                });
+
+                await csv.writeRecords(reviews);  // Writing to CSV
+                log.info(`CSV file saved to ${filePath}`);
+                await Actor.pushData(reviews); // Push to Apify dataset
+
             } catch (err) {
                 log.error(`Failed to extract reviews: ${err.message}`);
             }
