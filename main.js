@@ -1,122 +1,130 @@
 import { Actor } from 'apify';
-import { PuppeteerCrawler, log, Dataset } from '@crawlee/puppeteer';
+import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
+import { writeFile } from 'fs/promises';
+import path from 'path';
+import { createObjectCsvWriter } from 'csv-writer';
 
-await Actor.init();
+// Define the output path
+const outputFolder = path.join(__dirname, 'output');
 
-const input = await Actor.getInput();
-const startUrls = input?.startUrls || [];
+// Ensure output folder exists (optional, depending on your setup)
+await writeFile(outputFolder, '', { flag: 'w' });
 
-log.info('Starting scraper...');
+Actor.main(async () => {
+    // Get the input data
+    const input = await Actor.getInput();
+    const startUrls = input?.startUrls || [];
+    const products = input?.products || [];
 
-const crawler = new PuppeteerCrawler({
-    maxRequestRetries: 3,
-    requestHandlerTimeoutSecs: 120,
-    navigationTimeoutSecs: 90,
+    log.info('Starting scraper...');
 
-    launchContext: {
-        launchOptions: {
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--window-size=1280,1024',
-                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-            ]
-        }
-    },
+    // Initialize the crawler
+    const crawler = new PuppeteerCrawler({
+        maxRequestRetries: 3,
+        requestHandlerTimeoutSecs: 120,
+        navigationTimeoutSecs: 90,
+        launchContext: {
+            launchOptions: {
+                headless: true,
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--window-size=1280,1024',
+                    '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+                ]
+            }
+        },
+        preNavigationHooks: [
+            async (context, gotoOptions) => {
+                const { page } = context;
+                await page.setExtraHTTPHeaders({
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                });
+                gotoOptions.timeout = 90000;
+                gotoOptions.waitUntil = 'networkidle2';
+            }
+        ],
+        async requestHandler({ page, request }) {
+            log.info(`Processing: ${request.url}`);
 
-    preNavigationHooks: [
-        async (context, gotoOptions) => {
-            const { page } = context;
-            await page.setExtraHTTPHeaders({
-                'Accept-Language': 'en-US,en;q=0.9',
-            });
-            gotoOptions.timeout = 90000;
-            gotoOptions.waitUntil = 'networkidle2';
-        }
-    ],
-
-    async requestHandler({ page, request, enqueueLinks }) {
-        log.info(`Processing: ${request.url}`);
-
-        if (request.label === 'DETAIL') {
-            // 🟢 Scrape reviews from product detail page
+            // Scrape product review information
             try {
+                await page.setDefaultNavigationTimeout(90000);
+                await page.setDefaultTimeout(60000);
+
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
                 const reviews = await page.evaluate(() => {
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     return Array.from(reviewElems).slice(0, 10).map(el => {
-                        const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
+                        const getText = (selector) => {
+                            const elNode = el.querySelector(selector);
+                            return elNode?.innerText?.trim() || null;
+                        };
 
-                        const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
-                        const date = getText('.product-review-unit-user-info .review-write-info-date');
-                        const text = getText('.review-unit-cont-comment');
-                        const option = getText('.review-unit-option span');
-                        const image = (() => {
-                            const imgEl = el.querySelector('.review-unit-media img');
-                            if (!imgEl) return null;
-                            return imgEl.src.startsWith('/')
-                                ? `https://global.oliveyoung.com${imgEl.src}`
-                                : imgEl.src;
-                        })();
-                        const stars = (() => {
-                            const box = el.querySelector('.review-star-rating');
-                            const lefts = box?.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length || 0;
-                            const rights = box?.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length || 0;
-                            return (lefts + rights) * 0.5 || null;
-                        })();
-                        const features = {};
-                        el.querySelectorAll('.list-review-evlt li').forEach(li => {
-                            const label = li.querySelector('span')?.innerText?.trim();
-                            const count = li.querySelectorAll('.wrap-icon-star .icon-star.filled').length * 0.5;
-                            if (label) features[label] = count;
-                        });
+                        const title = getText('.review-title') || 'No Title'; // Use product name as fallback
+                        const body = getText('.review-unit-cont-comment') || 'No review body';
+                        const rating = (el.querySelector('.review-star-rating')?.childElementCount || 0) * 0.5 || 0;
+                        const reviewDate = getText('.review-write-info-date');
+                        const reviewerName = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
+                        const reviewerEmail = 'example@example.com'; // Modify as per requirement (static or dynamic)
+                        const productUrl = window.location.href;
 
-                        const likeCount = getText('.btn-likey-count');
+                        const imgEl = el.querySelector('.review-unit-media img');
+                        const pictureUrls = imgEl ? imgEl.src : null;
+
+                        const productId = window.location.pathname.split('?prdtNo=')[1];
 
                         return {
-                            id: `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                            name,
-                            date,
-                            text,
-                            option,
-                            image,
-                            stars,
-                            features,
-                            likeCount,
-                            productUrl: window.location.href
+                            title, 
+                            body,
+                            rating, 
+                            reviewDate, 
+                            reviewerName, 
+                            reviewerEmail,
+                            productUrl, 
+                            pictureUrls, 
+                            productId, 
+                            productHandle: productId,
                         };
-                    }).filter(r => r.text);
+                    }).filter(r => r.body); // Ensure there is some review text
                 });
 
                 log.info(`Extracted ${reviews.length} reviews`);
-                await Actor.pushData(reviews);
-            } catch (err) {
-                log.error(`Failed to extract reviews: ${err.message}`);
-            }
 
-        } else {
-            // 🟡 Search page – extract detail page URL and enqueue it
-            const productUrl = await page.evaluate(() => {
-                const linkEl = document.querySelector('.prdt-unit a[href*="/product/detail?prdtNo="]');
-                return linkEl ? linkEl.href : null;
-            });
-
-            if (productUrl) {
-                log.info(`Found 1 product links, enqueuing...`);
-                await enqueueLinks({
-                    urls: [productUrl],
-                    label: 'DETAIL'
+                // Store reviews in a CSV format
+                const csvWriter = createObjectCsvWriter({
+                    path: path.join(outputFolder, `scraping_data_${Date.now()}.csv`),
+                    header: [
+                        { id: 'title', title: 'title' },
+                        { id: 'body', title: 'body' },
+                        { id: 'rating', title: 'rating' },
+                        { id: 'reviewDate', title: 'review_date' },
+                        { id: 'reviewerName', title: 'reviewer_name' },
+                        { id: 'reviewerEmail', title: 'reviewer_email' },
+                        { id: 'productUrl', title: 'product_url' },
+                        { id: 'pictureUrls', title: 'picture_urls' },
+                        { id: 'productId', title: 'product_id' },
+                        { id: 'productHandle', title: 'product_handle' }
+                    ]
                 });
-            } else {
-                log.warning('No product detail link found on search page.');
+
+                await csvWriter.writeRecords(reviews);
+                log.info('CSV file written to: ' + path.join(outputFolder, `scraping_data_${Date.now()}.csv`));
+
+                // Push the data back to Apify's storage
+                await Actor.pushData(reviews);
+
+            } catch (error) {
+                log.error('Scraping failed:', error.message);
+                throw error;
             }
         }
-    }
-});
+    });
 
-await crawler.run(startUrls);
-await Actor.exit();
+    // Run the crawler
+    await crawler.run(startUrls);
+});
