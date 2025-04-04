@@ -1,5 +1,5 @@
 import { createObjectCsvWriter } from 'csv-writer'; // For generating CSV
-import Apify from 'apify'; // Apify library for crawling
+import { main } from 'apify'; // Apify library for crawling
 import puppeteer from 'puppeteer-core'; // Puppeteer for scraping
 
 // Function to scrape product details from the search page
@@ -61,7 +61,7 @@ async function generateCSVFile(reviews, fileName) {
 }
 
 // Main crawling function
-Apify.main(async () => {
+main(async () => {
     const query = 'Green Finger Forest Multi Defense Sun Stick 19g'; // Set the query string for searching products
     const products = await fetchProductData(query); // Fetch the products based on the query
 
