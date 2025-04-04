@@ -93,7 +93,7 @@ Actor.main(async () => {
 
             log.info(`Extracted ${reviews.length} reviews`);
             if (reviews.length) {
-                const outputPath = path.join('/mnt/data', `reviews-${Date.now()}.json`);
+                const outputPath = path.join(__dirname, 'output', `reviews-${Date.now()}.json`);
                 await writeFile(outputPath, JSON.stringify(reviews, null, 2));
                 log.info(`Saved to: ${outputPath}`);
                 await Actor.pushData(reviews);
