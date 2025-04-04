@@ -40,8 +40,25 @@ Actor.main(async () => {
                 gotoOptions.waitUntil = 'networkidle2';
             }
         ],
-        async requestHandler({ page, request }) {
+        async requestHandler({ page, request, crawler }) {
             log.info(`Processing: ${request.url}`);
+            const isSearchPage = request.url.includes('/display/search');
+
+            if (isSearchPage) {
+                await page.waitForSelector('.prdt-unit', { timeout: 30000 });
+
+                const productLinks = await page.$$eval('.prdt-unit a', links =>
+                    [...new Set(links.map(link => link.href).filter(href => href.includes('/product/detail')))]
+                );
+
+                log.info(`Found ${productLinks.length} product links, enqueuing...`);
+                for (const link of productLinks) {
+                    await crawler.addRequests([link]);
+                }
+                return;
+            }
+
+            // Product page logic
             await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
             const reviews = await page.evaluate(() => {
@@ -94,15 +111,13 @@ Actor.main(async () => {
 
             log.info(`Extracted ${reviews.length} reviews`);
             if (reviews.length) {
-                const outputDir = path.join(__dirname, 'output');
-                await mkdir(outputDir, { recursive: true });
-
-                const outputPath = path.join(outputDir, `reviews-${Date.now()}.json`);
+                const outputPath = path.join(__dirname, 'output', `reviews-${Date.now()}.json`);
+                await mkdir(path.dirname(outputPath), { recursive: true });
                 await writeFile(outputPath, JSON.stringify(reviews, null, 2));
-                log.info(`Saved to: ${outputPath}`);
                 await Actor.pushData(reviews);
+                log.info(`Saved to: ${outputPath}`);
             } else {
-                log.warning('No reviews found');
+                log.warning('No reviews found on product page');
             }
         }
     });
