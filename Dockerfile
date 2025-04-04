@@ -1,28 +1,27 @@
-# Use the Apify actor node image as base
 FROM apify/actor-node-puppeteer-chrome:18-21.1.0
 
 USER root
 
-# Clean old Crawlee if exists (make sure no conflicts)
+# Clean any existing Crawlee module
 RUN rm -rf /home/myuser/node_modules/crawlee
 
-# Prepare the app folder and ensure correct ownership
+# Prepare application folder
 RUN mkdir -p /home/myuser/app && chown -R myuser:myuser /home/myuser/app
 
 WORKDIR /home/myuser/app
 
 USER myuser
 
-# Copy package.json and package-lock.json files for installing dependencies
+# Copy dependency info
 COPY package*.json ./
 
-# Install dependencies, including csv-writer and other packages listed in package.json
+# Install dependencies
 RUN npm install --quiet --omit=dev --no-optional && \
     npm install @crawlee/puppeteer@3.13.0 --force && \
     npm list || true
 
-# Copy the rest of the application files to the container
+# Copy project files
 COPY . .
 
-# Set the command to run your app (main.js)
+# Default command
 CMD ["sh", "-c", "NODE_PATH=./node_modules node main.js"]
