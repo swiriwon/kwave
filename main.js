@@ -42,7 +42,7 @@ Actor.main(async () => {
                 const searchUrl = `https://global.oliveyoung.com/display/search?query=${searchTerm}`;
                 await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
-                // Step 2: Find first product and build full detail URL
+                // Step 2: Extract product link
                 const productLink = await page.evaluate(() => {
                     const anchor = document.querySelector('.prd_info a.name');
                     if (!anchor) return null;
@@ -57,7 +57,7 @@ Actor.main(async () => {
                     return;
                 }
 
-                // Step 3: Visit product detail page
+                // Step 3: Go to product detail page
                 await page.goto(productLink, { waitUntil: 'networkidle2', timeout: 60000 });
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
@@ -71,9 +71,7 @@ Actor.main(async () => {
                         const text = getText('.review-unit-cont-comment');
 
                         const imgEl = el.querySelector('.review-unit-media img');
-                        const image = imgEl?.src?.startsWith('/')
-                            ? `https://global.oliveyoung.com${imgEl.src}`
-                            : imgEl?.src || '';
+                        const image = imgEl ? new URL(imgEl.getAttribute('src'), 'https://global.oliveyoung.com').href : '';
 
                         const ratingBox = el.querySelector('.review-star-rating');
                         const lefts = ratingBox?.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length || 0;
