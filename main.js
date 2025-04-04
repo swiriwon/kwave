@@ -1,7 +1,7 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log, Dataset } from '@crawlee/puppeteer';
 import { writeFile } from 'fs';
-import { getRandomName } from './fakeNameGenerator'; // Assuming this is a utility to generate random names.
+import { getRandomName } from './fakeNameGenerator'; // Use the fake name generator within this file
 
 await Actor.init();
 
@@ -9,6 +9,15 @@ const input = await Actor.getInput();
 const startUrls = input?.startUrls || [];
 
 log.info('Starting scraper...');
+
+const getRandomName = () => {
+    const names = [
+        'Linda', 'John', 'Emma', 'James', 'Sophia', 'Liam', 'Olivia', 'Benjamin', 'Charlotte', 'Lucas', 
+        'Amelia', 'Elijah', 'Mia', 'Harper', 'Aiden', 'Evelyn', 'Jackson', 'Avery', 'Isaac', 'Scarlett'
+    ];
+    const randomName = names[Math.floor(Math.random() * names.length)];
+    return randomName + '****'; // Generate a fake name by appending asterisks to simulate privacy
+};
 
 const crawler = new PuppeteerCrawler({
     maxRequestRetries: 3,
