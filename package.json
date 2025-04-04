@@ -11,7 +11,7 @@
     "apify": "^3.4.0",
     "@crawlee/puppeteer": "^3.13.0",
     "puppeteer": "21.1.1",
-    "csv-writer": "^1.6.0"
+    "csv-writer": "^1.6.0",
     "slugify": "^1.6.6"
   }
 }
