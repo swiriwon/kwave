@@ -1,7 +1,7 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log, Dataset } from '@crawlee/puppeteer';
 import { writeFile } from 'fs';
-import { getRandomName } from './fakeNameGenerator'; // Use the fake name generator within this file
+import { createObjectCsvWriter } from 'csv-writer';
 
 await Actor.init();
 
@@ -110,7 +110,7 @@ const crawler = new PuppeteerCrawler({
                 const fileName = `scraping_data_${currentDate}.csv`; // Save with the desired filename
                 const filePath = `/home/myuser/app/output/${fileName}`;
 
-                const csv = require('csv-writer').createObjectCsvWriter({
+                const csv = createObjectCsvWriter({
                     path: filePath,
                     header: [
                         { id: 'title', title: 'title' },
