@@ -1,8 +1,8 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 import { writeFile } from 'fs';
-import { createObjectCsvWriter } from 'csv-writer';
 import path from 'path';
+import fs from 'fs'; // Import fs to check and create directories
 
 await Actor.init();
 
@@ -11,24 +11,18 @@ const startUrls = input?.startUrls || [];
 
 log.info('Starting scraper...');
 
-// Fake name generator
-const getRandomName = () => {
-    const names = [
-        'Linda', 'John', 'Emma', 'James', 'Sophia', 'Liam', 'Olivia', 'Benjamin', 'Charlotte', 'Lucas', 
-        'Amelia', 'Elijah', 'Mia', 'Harper', 'Aiden', 'Evelyn', 'Jackson', 'Avery', 'Isaac', 'Scarlett'
-    ];
-    const randomName = names[Math.floor(Math.random() * names.length)];
-    return randomName + '****'; // Generate a fake name by appending asterisks to simulate privacy
-};
+// Define output folder path where the file will be saved
+const outputFolder = '/home/myuser/app/output/';
 
-const outputFolder = '/home/myuser/app/output/'; // This is the folder in the container environment
-
-// Create the directory if it doesn't exist
-const fs = require('fs');
-if (!fs.existsSync(outputFolder)){
-    fs.mkdirSync(outputFolder, { recursive: true });
+// Check if the output directory exists, if not, create it
+if (!fs.existsSync(outputFolder)) {
+    log.info(`Creating directory: ${outputFolder}`);
+    fs.mkdirSync(outputFolder, { recursive: true }); // Create the folder if it doesn't exist
+} else {
+    log.info(`Directory exists: ${outputFolder}`);
 }
 
+// Start the Puppeteer crawler
 const crawler = new PuppeteerCrawler({
     maxRequestRetries: 3,
     requestHandlerTimeoutSecs: 120,
@@ -63,7 +57,7 @@ const crawler = new PuppeteerCrawler({
         log.info(`Processing: ${request.url}`);
 
         if (request.label === 'DETAIL') {
-            // 🟢 Scrape reviews from product detail page
+            // Scrape reviews from product detail page
             try {
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
@@ -72,7 +66,7 @@ const crawler = new PuppeteerCrawler({
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
 
-                        const name = getText('.product-review-unit-user-info .review-write-info-writer') || getRandomName(); // Fake name if not available
+                        const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
                         const date = getText('.product-review-unit-user-info .review-write-info-date');
                         const text = getText('.review-unit-cont-comment');
                         const option = getText('.review-unit-option span');
@@ -99,53 +93,39 @@ const crawler = new PuppeteerCrawler({
                         const likeCount = getText('.btn-likey-count');
 
                         return {
-                            title: name,  // Use name as title (as there is no title in OliveYoung reviews)
-                            body: text,
-                            rating: stars,
-                            review_date: date,
-                            reviewer_name: name,
-                            reviewer_email: 'fake-email@kwave.com', // You can replace this with a generator if needed
-                            product_url: window.location.href,
-                            picture_urls: image,
-                            product_id: window.location.href.split('prdtNo=')[1], // Assuming prdtNo is in the URL
-                            product_handle: window.location.href.split('prdtNo=')[1] // You can modify the logic if needed
+                            id: `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                            name,
+                            date,
+                            text,
+                            option,
+                            image,
+                            stars,
+                            features,
+                            likeCount,
+                            productUrl: window.location.href
                         };
                     }).filter(r => r.text);
                 });
 
                 log.info(`Extracted ${reviews.length} reviews`);
-
-                // Save the reviews to a CSV file
-                const currentDate = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
-                const fileName = `scraping_data_${currentDate}.csv`; // Save with the desired filename
-                const filePath = `${outputFolder}${fileName}`;
-
-                const csv = createObjectCsvWriter({
-                    path: filePath,
-                    header: [
-                        { id: 'title', title: 'title' },
-                        { id: 'body', title: 'body' },
-                        { id: 'rating', title: 'rating' },
-                        { id: 'review_date', title: 'review_date' },
-                        { id: 'reviewer_name', title: 'reviewer_name' },
-                        { id: 'reviewer_email', title: 'reviewer_email' },
-                        { id: 'product_url', title: 'product_url' },
-                        { id: 'picture_urls', title: 'picture_urls' },
-                        { id: 'product_id', title: 'product_id' },
-                        { id: 'product_handle', title: 'product_handle' }
-                    ]
+                // Define file name with the current date
+                const fileName = `${outputFolder}/scraping_data_${new Date().toISOString().split('T')[0]}.csv`;
+                // Write CSV file
+                await writeFile(fileName, JSON.stringify(reviews, null, 2), (err) => {
+                    if (err) {
+                        log.error("Failed to save the file", err);
+                    } else {
+                        log.info(`File saved to: ${fileName}`);
+                    }
                 });
 
-                await csv.writeRecords(reviews);  // Writing to CSV
-                log.info(`CSV file saved to ${filePath}`);
-                await Actor.pushData(reviews); // Push to Apify dataset
-
+                // Push the data to Apify
+                await Actor.pushData(reviews);
             } catch (err) {
                 log.error(`Failed to extract reviews: ${err.message}`);
             }
-
         } else {
-            // 🟡 Search page – extract detail page URL and enqueue it
+            // Search page – extract detail page URL and enqueue it
             const productUrl = await page.evaluate(() => {
                 const linkEl = document.querySelector('.prdt-unit a[href*="/product/detail?prdtNo="]');
                 return linkEl ? linkEl.href : null;
