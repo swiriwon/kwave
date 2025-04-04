@@ -99,27 +99,11 @@ Actor.main(async () => {
     await crawler.run(startUrls);
 
     if (allReviews.length > 0) {
-        const fs = require('fs');
-        const path = '/mnt/data/JUDGEME_OUTPUT.csv';
-        const headers = [
-            'body',
-            'rating',
-            'review_date',
-            'reviewer_name',
-            'reviewer_email',
-            'product_url',
-            'picture_urls',
-            'product_handle'
-        ];
-        const csvWriter = require('csv-writer').createObjectCsvWriter({
-            path,
-            header: headers.map(h => ({ id: h, title: h }))
-        });
-
-        await csvWriter.writeRecords(allReviews);
-        await Actor.setValue('JUDGEME_OUTPUT.csv', fs.readFileSync(path), { contentType: 'text/csv' });
-        log.info('✅ Exported Judge.me-compatible CSV as JUDGEME_OUTPUT.csv');
+        for (const review of allReviews) {
+            await Actor.pushData(review);
+        }
     } else {
-        log.warning('No reviews found or scraped.');
+        log.warning('No reviews found to push to dataset.');
     }
+
 });
