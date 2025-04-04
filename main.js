@@ -8,12 +8,15 @@ Actor.main(async () => {
     const shopDomain = input?.shopDomain || 'https://kwave.ai';
     const shopProductUrl = `${shopDomain}/products/${productHandle}`;
 
+    if (!searchTerm || !productHandle) {
+        throw new Error('Missing required input: "searchTerm" or "productHandle"');
+    }
+
     const allReviews = [];
 
     const generateFakeName = (maskedName) => {
         const cleaned = maskedName.replace(/\*/g, '').trim();
         if (!cleaned) return 'Anonymous';
-
         const fillers = 'aeioulnrstmd';
         let result = cleaned;
         while (result.length < 5) {
@@ -32,21 +35,33 @@ Actor.main(async () => {
                 args: ['--no-sandbox', '--disable-setuid-sandbox']
             }
         },
+
         async requestHandler({ page }) {
             try {
                 // Step 1: Search on OliveYoung
                 const searchUrl = `https://global.oliveyoung.com/display/search?query=${searchTerm}`;
                 await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
-                // Step 2: Find first matching product and navigate
-                const productLink = await page.evaluate((searchTerm) => {
+                // Step 2: Find best matching product by fuzzy word match
+                const productLink = await page.evaluate((term) => {
+                    const keywords = term.toLowerCase().split(/[\s\-]+/);
                     const items = Array.from(document.querySelectorAll('.prd_info a.name'));
-                    const termLower = searchTerm.toLowerCase();
+                    let bestMatch = null;
+                    let highestScore = 0;
+
                     for (const item of items) {
-                        const name = item.textContent.trim().toLowerCase();
-                        if (name.includes(termLower)) return item.href;
+                        const title = item.textContent.trim().toLowerCase();
+                        const score = keywords.reduce((acc, word) => {
+                            return acc + (title.includes(word) ? 1 : 0);
+                        }, 0);
+
+                        if (score > highestScore) {
+                            highestScore = score;
+                            bestMatch = item.href;
+                        }
                     }
-                    return items[0]?.href || null;
+
+                    return bestMatch;
                 }, searchTerm);
 
                 if (!productLink) {
@@ -62,7 +77,6 @@ Actor.main(async () => {
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || '';
-
                         const rawName = getText('.product-review-unit-user-info .review-write-info-writer');
                         const date = getText('.product-review-unit-user-info .review-write-info-date');
                         const text = getText('.review-unit-cont-comment');
@@ -108,7 +122,7 @@ Actor.main(async () => {
         }
     });
 
-    await crawler.run([{ url: 'https://global.oliveyoung.com' }]); // dummy seed
+    await crawler.run([{ url: 'https://global.oliveyoung.com' }]);
 
     if (allReviews.length > 0) {
         for (const review of allReviews) {
