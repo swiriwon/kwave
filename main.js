@@ -1,13 +1,12 @@
 const { Actor } = require('apify');
-const { PuppeteerCrawler } = require('@crawlee/puppeteer');
-const { setTimeout } = require('node:timers/promises');
+const { PuppeteerCrawler, log } = require('@crawlee/puppeteer');
 
 Actor.main(async () => {
     const input = await Actor.getInput();
-    const startUrls = input?.startUrls || [];
+    const searchTerm = input?.searchTerm;
     const productHandle = input?.productHandle;
     const shopDomain = input?.shopDomain || 'https://kwave.ai';
-    const productUrl = `${shopDomain}/products/${productHandle}`;
+    const shopProductUrl = `${shopDomain}/products/${productHandle}`;
 
     const allReviews = [];
 
@@ -17,65 +16,56 @@ Actor.main(async () => {
 
         const fillers = 'aeioulnrstmd';
         let result = cleaned;
-
         while (result.length < 5) {
             result += fillers[Math.floor(Math.random() * fillers.length)];
         }
-
         return result.charAt(0).toUpperCase() + result.slice(1);
     };
 
     const crawler = new PuppeteerCrawler({
-        maxRequestRetries: 3,
-        requestHandlerTimeoutSecs: 120,
-        navigationTimeoutSecs: 90,
-
+        maxRequestRetries: 2,
+        requestHandlerTimeoutSecs: 90,
+        navigationTimeoutSecs: 60,
         launchContext: {
             launchOptions: {
                 headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu',
-                    '--window-size=1280,1024',
-                    '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-                ]
+                args: ['--no-sandbox', '--disable-setuid-sandbox']
             }
         },
-
-        preNavigationHooks: [
-            async ({ page }, gotoOptions) => {
-                await page.setExtraHTTPHeaders({
-                    'Accept-Language': 'en-US,en;q=0.9',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                    'sec-ch-ua': '"Google Chrome";v="121", " Not;A Brand";v="99"',
-                    'sec-ch-ua-mobile': '?0',
-                    'sec-ch-ua-platform': '"Windows"',
-                    'Upgrade-Insecure-Requests': '1'
-                });
-                gotoOptions.timeout = 90000;
-                gotoOptions.waitUntil = 'networkidle2';
-            }
-        ],
-
-        async requestHandler({ page, request }) {
+        async requestHandler({ page }) {
             try {
-                await page.setDefaultNavigationTimeout(90000);
-                await page.setDefaultTimeout(60000);
+                // Step 1: Search on OliveYoung
+                const searchUrl = `https://global.oliveyoung.com/display/search?query=${searchTerm}`;
+                await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+
+                // Step 2: Find first matching product and navigate
+                const productLink = await page.evaluate((searchTerm) => {
+                    const items = Array.from(document.querySelectorAll('.prd_info a.name'));
+                    const termLower = searchTerm.toLowerCase();
+                    for (const item of items) {
+                        const name = item.textContent.trim().toLowerCase();
+                        if (name.includes(termLower)) return item.href;
+                    }
+                    return items[0]?.href || null;
+                }, searchTerm);
+
+                if (!productLink) {
+                    log.warning('No matching product found');
+                    return;
+                }
+
+                await page.goto(productLink, { waitUntil: 'networkidle2', timeout: 60000 });
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
+                // Step 3: Extract reviews
                 const reviews = await page.evaluate(() => {
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     return Array.from(reviewElems).slice(0, 10).map(el => {
-                        const getText = (selector) => {
-                            const elNode = el.querySelector(selector);
-                            return elNode?.innerText?.trim() || null;
-                        };
+                        const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || '';
 
-                        const rawName = getText('.product-review-unit-user-info .review-write-info-writer') || '';
-                        const date = getText('.product-review-unit-user-info .review-write-info-date') || '';
-                        const text = getText('.review-unit-cont-comment') || '';
+                        const rawName = getText('.product-review-unit-user-info .review-write-info-writer');
+                        const date = getText('.product-review-unit-user-info .review-write-info-date');
+                        const text = getText('.review-unit-cont-comment');
 
                         const imgEl = el.querySelector('.review-unit-media img');
                         const image = imgEl?.src?.startsWith('/')
@@ -104,27 +94,27 @@ Actor.main(async () => {
                         rating: r.rating || '',
                         review_date: r.review_date || '',
                         reviewer_name: generateFakeName(r.rawName || ''),
-                        reviewer_email: '', // Blank as required
-                        product_url: productUrl,
+                        reviewer_email: '',
+                        product_url: shopProductUrl,
                         picture_urls: r.picture_urls || '',
-                        product_id: '', // Blank
+                        product_id: '',
                         product_handle: productHandle
                     });
                 }
 
             } catch (err) {
-                console.error(`Error scraping ${request.url}:`, err.message);
+                log.error('Failed to scrape product reviews:', err.message);
             }
         }
     });
 
-    await crawler.run(startUrls);
+    await crawler.run([{ url: 'https://global.oliveyoung.com' }]); // dummy seed
 
     if (allReviews.length > 0) {
-        for (const r of allReviews) {
-            await Actor.pushData(r); // Push each row to dataset
+        for (const review of allReviews) {
+            await Actor.pushData(review);
         }
     } else {
-        console.warn('No reviews found to push to dataset.');
+        log.warning('No reviews extracted.');
     }
 });
