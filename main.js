@@ -1,6 +1,6 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
-import { writeFile } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -94,7 +94,10 @@ Actor.main(async () => {
 
             log.info(`Extracted ${reviews.length} reviews`);
             if (reviews.length) {
-                const outputPath = path.join(__dirname, 'output', `reviews-${Date.now()}.json`);
+                const outputDir = path.join(__dirname, 'output');
+                await mkdir(outputDir, { recursive: true });
+
+                const outputPath = path.join(outputDir, `reviews-${Date.now()}.json`);
                 await writeFile(outputPath, JSON.stringify(reviews, null, 2));
                 log.info(`Saved to: ${outputPath}`);
                 await Actor.pushData(reviews);
