@@ -1,5 +1,5 @@
 const { Actor } = require('apify');
-const { PuppeteerCrawler, log } = require('@crawlee/puppeteer');
+const { PuppeteerCrawler } = require('@crawlee/puppeteer');
 const { setTimeout } = require('node:timers/promises');
 
 Actor.main(async () => {
@@ -10,6 +10,20 @@ Actor.main(async () => {
     const productUrl = `${shopDomain}/products/${productHandle}`;
 
     const allReviews = [];
+
+    const generateFakeName = (maskedName) => {
+        const cleaned = maskedName.replace(/\*/g, '').trim();
+        if (!cleaned) return 'Anonymous';
+
+        const fillers = 'aeioulnrstmd';
+        let result = cleaned;
+
+        while (result.length < 5) {
+            result += fillers[Math.floor(Math.random() * fillers.length)];
+        }
+
+        return result.charAt(0).toUpperCase() + result.slice(1);
+    };
 
     const crawler = new PuppeteerCrawler({
         maxRequestRetries: 3,
@@ -59,39 +73,47 @@ Actor.main(async () => {
                             return elNode?.innerText?.trim() || null;
                         };
 
-                        const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
-                        const date = getText('.product-review-unit-user-info .review-write-info-date');
-                        const text = getText('.review-unit-cont-comment');
+                        const rawName = getText('.product-review-unit-user-info .review-write-info-writer') || '';
+                        const date = getText('.product-review-unit-user-info .review-write-info-date') || '';
+                        const text = getText('.review-unit-cont-comment') || '';
 
                         const imgEl = el.querySelector('.review-unit-media img');
                         const image = imgEl?.src?.startsWith('/')
                             ? `https://global.oliveyoung.com${imgEl.src}`
-                            : imgEl?.src;
+                            : imgEl?.src || '';
 
                         const ratingBox = el.querySelector('.review-star-rating');
                         const lefts = ratingBox?.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length || 0;
                         const rights = ratingBox?.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length || 0;
-                        const stars = (lefts + rights) * 0.5 || null;
+                        const stars = (lefts + rights) * 0.5 || '';
 
                         return {
+                            rawName,
+                            review_date: date,
                             body: text,
                             rating: stars,
-                            review_date: date,
-                            reviewer_name: name,
-                            reviewer_email: 'anon@example.com',
-                            picture_urls: image || '',
+                            picture_urls: image
                         };
                     }).filter(r => r.body && r.rating);
                 });
 
                 for (const r of reviews) {
-                    r.product_handle = productHandle;
-                    r.product_url = productUrl;
-                    allReviews.push(r);
+                    allReviews.push({
+                        title: '',
+                        body: r.body || '',
+                        rating: r.rating || '',
+                        review_date: r.review_date || '',
+                        reviewer_name: generateFakeName(r.rawName || ''),
+                        reviewer_email: '', // Blank as required
+                        product_url: productUrl,
+                        picture_urls: r.picture_urls || '',
+                        product_id: '', // Blank
+                        product_handle: productHandle
+                    });
                 }
 
             } catch (err) {
-                log.error(`Error processing ${request.url}: ${err.message}`);
+                console.error(`Error scraping ${request.url}:`, err.message);
             }
         }
     });
@@ -99,11 +121,10 @@ Actor.main(async () => {
     await crawler.run(startUrls);
 
     if (allReviews.length > 0) {
-        for (const review of allReviews) {
-            await Actor.pushData(review);
+        for (const r of allReviews) {
+            await Actor.pushData(r); // Push each row to dataset
         }
     } else {
-        log.warning('No reviews found to push to dataset.');
+        console.warn('No reviews found to push to dataset.');
     }
-
 });
