@@ -3,15 +3,13 @@
   "version": "1.0.0",
   "description": "Scraper for OliveYoung product reviews",
   "main": "main.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "start": "node main.js"
   },
   "dependencies": {
     "apify": "^3.4.0",
-    "@crawlee/puppeteer": "^3.13.0",
-    "puppeteer": "21.1.1",
-    "csv-writer": "^1.6.0",
-    "slugify": "^1.6.6"
+    "slugify": "^1.6.0",
+    "puppeteer": "21.1.1"
   }
 }
