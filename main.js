@@ -1,5 +1,5 @@
 import { Actor } from 'apify';
-import { PuppeteerCrawler, log, Dataset } from '@crawlee/puppeteer';
+import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 import { writeFile } from 'fs';
 import { createObjectCsvWriter } from 'csv-writer';
 import path from 'path';
@@ -11,6 +11,7 @@ const startUrls = input?.startUrls || [];
 
 log.info('Starting scraper...');
 
+// Fake name generator
 const getRandomName = () => {
     const names = [
         'Linda', 'John', 'Emma', 'James', 'Sophia', 'Liam', 'Olivia', 'Benjamin', 'Charlotte', 'Lucas', 
@@ -20,7 +21,13 @@ const getRandomName = () => {
     return randomName + '****'; // Generate a fake name by appending asterisks to simulate privacy
 };
 
-const outputFolder = '/mnt/data/'; // Ensure the folder exists inside the container for file saving
+const outputFolder = '/home/myuser/app/output/'; // This is the folder in the container environment
+
+// Create the directory if it doesn't exist
+const fs = require('fs');
+if (!fs.existsSync(outputFolder)){
+    fs.mkdirSync(outputFolder, { recursive: true });
+}
 
 const crawler = new PuppeteerCrawler({
     maxRequestRetries: 3,
