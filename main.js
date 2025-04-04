@@ -1,103 +1,98 @@
-// Importing required modules
-const Apify = require('apify');
-const fs = require('fs');
-const path = require('path');
-const slugify = require('slugify'); // To create URLs from product names
+import { Apify } from 'apify';
+import { writeFileSync } from 'fs';
+import puppeteer from 'puppeteer-core';
+import { CSVWriter } from 'csv-writer';
 
-// Function to generate CSV file for the reviews
-const writeCsv = (data, fileName) => {
-    const filePath = path.join(__dirname, 'output', fileName); // Path to output folder
-    const headers = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
+// Function to scrape product details from the search page
+async function fetchProductData(query) {
+    const searchUrl = `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(query)}`;
 
-    const csvContent = [
-        headers.join(','),
-        ...data.map(row => headers.map(fieldName => row[fieldName]).join(','))
-    ].join('\n');
+    // Launching Puppeteer
+    const browser = await puppeteer.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(searchUrl, { waitUntil: 'load' });
 
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(path.join(__dirname, 'output'))) {
-        fs.mkdirSync(path.join(__dirname, 'output'));
-    }
-
-    // Write CSV to the file
-    fs.writeFileSync(filePath, csvContent);
-    console.log('CSV file saved to:', filePath);
-};
-
-// Main function to scrape reviews
-Apify.main(async () => {
-    // Define the product search term and handle
-    const searchTerm = 'Green Finger Forest Multi Defense Sun Stick 19g';
-    const productHandle = 'green-finger-forest-multi-defense-sun-stick-19g';
-    const shopDomain = 'https://kwave.ai'; // Replace with your shop's URL (if needed)
-
-    // Prepare the search URL for OliveYoung
-    const searchUrl = `https://global.oliveyoung.com/display/search?query=${slugify(searchTerm, { lower: true })}`;
-
-    console.log('Searching for product:', searchTerm);
-
-    // Create Apify crawler
-    const crawler = new Apify.PuppeteerCrawler({
-        requestQueue: await Apify.openRequestQueue(),
-        maxRequestsPerCrawl: 1, // Limit to 1 request
-        handlePageFunction: async ({ page }) => {
-            // Navigate to the search results
-            console.log('Navigating to search URL');
-            await page.goto(searchUrl);
-            await page.waitForSelector('.prdt-unit');
-
-            // Extract product detail URL from the search results
-            const productLinks = await page.$$eval('.prdt-unit a', links => links.map(link => link.href));
-
-            if (productLinks.length === 0) {
-                console.log('No products found!');
-                return;
-            }
-
-            // Extract product number and details page link
-            const productNumber = productLinks[0].split('prdtNo=')[1]; // Extract product number from the URL
-            const productDetailUrl = `https://global.oliveyoung.com/product/detail?prdtNo=${productNumber}&dataSource=search_result`;
-
-            console.log('Navigating to product detail page:', productDetailUrl);
-
-            // Navigate to product detail page
-            await page.goto(productDetailUrl);
-            await page.waitForSelector('.product-review');
-
-            // Extract reviews
-            const reviews = await page.$$eval('.product-review .review-unit', reviews => {
-                return reviews.map(review => {
-                    const title = review.querySelector('.review-title') ? review.querySelector('.review-title').innerText : '';
-                    const body = review.querySelector('.review-body') ? review.querySelector('.review-body').innerText : '';
-                    const rating = review.querySelector('.review-rating') ? review.querySelector('.review-rating').innerText : '';
-                    const reviewDate = review.querySelector('.review-date') ? review.querySelector('.review-date').innerText : '';
-                    const reviewerName = review.querySelector('.reviewer-name') ? review.querySelector('.reviewer-name').innerText : '';
-                    const reviewerEmail = ''; // As email is not available publicly, we leave it blank
-                    const productUrl = productDetailUrl;
-                    const pictureUrls = ''; // Handle picture URL extraction if needed
-                    const productId = productNumber;
-                    const productHandle = productHandle;
-
-                    return {
-                        title, body, rating, reviewDate, reviewerName, reviewerEmail,
-                        productUrl, pictureUrls, productId, productHandle
-                    };
-                });
-            });
-
-            console.log(`Found ${reviews.length} reviews for product: ${productHandle}`);
-
-            // Write the reviews to a CSV file
-            writeCsv(reviews, `${productHandle}_reviews.csv`);
-        },
-        handleFailedRequestFunction: async ({ request }) => {
-            console.log('Request failed:', request.url);
-        }
+    // Extract product details
+    const products = await page.evaluate(() => {
+        const productElements = Array.from(document.querySelectorAll('.prdt-unit'));
+        return productElements.map(product => {
+            const productId = product.querySelector('input[name="prdtNo"]')?.value;
+            const productName = product.querySelector('input[name="prdtName"]')?.value;
+            return { productId, productName };
+        });
     });
 
-    // Add initial request to queue
-    await crawler.addRequests([{ url: searchUrl }]);
+    await browser.close();
+    return products;
+}
 
-    // Run the crawler
-    await crawler.run();
+// Function to scrape reviews for a specific product
+async function fetchProductReviews(productId) {
+    const productUrl = `https://global.oliveyoung.com/product/detail?prdtNo=${productId}&dataSource=search_result`;
+
+    // Launch Puppeteer again for detailed page scraping
+    const browser = await puppeteer.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(productUrl, { waitUntil: 'load' });
+
+    // Scrape reviews (assuming reviews are within some review elements)
+    const reviews = await page.evaluate(() => {
+        const reviewElements = Array.from(document.querySelectorAll('.review-container')); // Update with actual review selectors
+        return reviewElements.map(review => {
+            const reviewerName = review.querySelector('.reviewer-name')?.textContent.trim() || 'Anonymous';
+            const reviewText = review.querySelector('.review-text')?.textContent.trim() || 'No text';
+            return { reviewerName, reviewText };
+        });
+    });
+
+    await browser.close();
+    return reviews;
+}
+
+// Function to generate and write CSV file for reviews
+async function generateCSVFile(reviews, fileName) {
+    const createCsvWriter = CSVWriter.createObjectCsvWriter;
+    const csvWriter = createCsvWriter({
+        path: fileName,
+        header: [
+            { id: 'productId', title: 'Product ID' },
+            { id: 'productName', title: 'Product Name' },
+            { id: 'reviewerName', title: 'Reviewer Name' },
+            { id: 'reviewText', title: 'Review' },
+        ],
+    });
+
+    await csvWriter.writeRecords(reviews);
+    console.log(`CSV file written to ${fileName}`);
+}
+
+// Main crawling function
+Apify.main(async () => {
+    const query = 'Green Finger Forest Multi Defense Sun Stick 19g'; // Example search term
+    const products = await fetchProductData(query);
+
+    const allReviews = [];
+
+    // Loop over products and collect reviews
+    for (const product of products) {
+        console.log(`Scraping reviews for product: ${product.productName} (ID: ${product.productId})`);
+
+        const reviews = await fetchProductReviews(product.productId);
+
+        // Add product details to each review
+        const enrichedReviews = reviews.map(review => ({
+            ...review,
+            productId: product.productId,
+            productName: product.productName,
+        }));
+
+        allReviews.push(...enrichedReviews);
+    }
+
+    // Write all collected reviews into a CSV file
+    const fileName = './review_data.csv';
+    await generateCSVFile(allReviews, fileName);
+
+    // If you want to upload it to GitHub via GitHub Actions, you can use an API or push it through the repository.
+    console.log('Review scraping complete!');
 });
