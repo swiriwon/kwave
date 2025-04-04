@@ -1,6 +1,6 @@
-import { createObjectCsvWriter } from 'csv-writer';
-import { Apify } from 'apify';
-import puppeteer from 'puppeteer-core';
+import { createObjectCsvWriter } from 'csv-writer'; // For generating CSV
+import Apify from 'apify'; // Apify library for crawling
+import puppeteer from 'puppeteer-core'; // Puppeteer for scraping
 
 // Function to scrape product details from the search page
 async function fetchProductData(query) {
@@ -62,27 +62,29 @@ async function generateCSVFile(reviews, fileName) {
 
 // Main crawling function
 Apify.main(async () => {
-    const query = 'Green Finger Forest Multi Defense Sun Stick 19g'; 
-    const products = await fetchProductData(query);
+    const query = 'Green Finger Forest Multi Defense Sun Stick 19g'; // Set the query string for searching products
+    const products = await fetchProductData(query); // Fetch the products based on the query
 
     const allReviews = [];
 
     for (const product of products) {
         console.log(`Scraping reviews for product: ${product.productName} (ID: ${product.productId})`);
 
-        const reviews = await fetchProductReviews(product.productId);
+        const reviews = await fetchProductReviews(product.productId); // Scrape reviews for each product
 
+        // Enrich reviews with product details
         const enrichedReviews = reviews.map(review => ({
             ...review,
             productId: product.productId,
             productName: product.productName,
         }));
 
+        // Push all enriched reviews to a collection
         allReviews.push(...enrichedReviews);
     }
 
-    const fileName = './review_data.csv';
-    await generateCSVFile(allReviews, fileName);
+    const fileName = './review_data.csv'; // Define the output CSV file name
+    await generateCSVFile(allReviews, fileName); // Generate and write the CSV file
 
     console.log('Review scraping complete!');
 });
