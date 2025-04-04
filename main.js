@@ -1,6 +1,7 @@
 import { createObjectCsvWriter } from 'csv-writer';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 
+// Define the output folder and CSV writer
 const outputFolder = './output'; // Ensure this folder exists
 
 const csvWriter = createObjectCsvWriter({
