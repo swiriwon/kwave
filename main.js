@@ -1,12 +1,17 @@
 const { Actor } = require('apify');
 const { PuppeteerCrawler, log } = require('@crawlee/puppeteer');
 const { setTimeout } = require('node:timers/promises');
+const { createObjectCsvWriter } = require('csv-writer');
 
 Actor.main(async () => {
     const input = await Actor.getInput();
     const startUrls = input?.startUrls || [];
+    const productHandle = input?.productHandle || 'default-product';
+    const shopifyProductUrl = input?.productUrl || 'https://yourshopifydomain.com/products/' + productHandle;
 
-    log.info('Starting scraper with accurate rating extraction...');
+    const allReviews = [];
+
+    log.info('Starting scraper in Judge.me format...');
 
     const crawler = new PuppeteerCrawler({
         maxRequestRetries: 3,
@@ -49,7 +54,6 @@ Actor.main(async () => {
             try {
                 await page.setDefaultNavigationTimeout(90000);
                 await page.setDefaultTimeout(60000);
-
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
                 const reviews = await page.evaluate(() => {
@@ -63,72 +67,78 @@ Actor.main(async () => {
                         const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
                         const date = getText('.product-review-unit-user-info .review-write-info-date');
                         const text = getText('.review-unit-cont-comment');
-                        const option = getText('.review-unit-option span');
 
                         const imgEl = el.querySelector('.review-unit-media img');
                         const image = imgEl?.src?.startsWith('/')
                             ? `https://global.oliveyoung.com${imgEl.src}`
                             : imgEl?.src;
 
-                        // ✅ Main star rating logic: scoped to .review-star-rating only
-                        const stars = (() => {
-                            const ratingBox = el.querySelector('.review-star-rating');
-                            if (!ratingBox) return null;
-
-                            const lefts = ratingBox.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length;
-                            const rights = ratingBox.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length;
-                            return (lefts + rights) * 0.5 || null;
-                        })();
-
-                        // 🌟 Feature-specific ratings
-                        const features = {};
-                        el.querySelectorAll('.list-review-evlt li').forEach((li) => {
-                            const label = li.querySelector('span')?.innerText?.trim();
-                            const starCount = li.querySelectorAll('.wrap-icon-star .icon-star.filled').length * 0.5;
-                            if (label) features[label] = starCount;
-                        });
-
-                        const likeCount = getText('.btn-likey-count');
+                        const ratingBox = el.querySelector('.review-star-rating');
+                        const lefts = ratingBox?.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length || 0;
+                        const rights = ratingBox?.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length || 0;
+                        const stars = (lefts + rights) * 0.5 || null;
 
                         return {
-                            id: `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                            name,
-                            date,
-                            text,
-                            option,
-                            image,
-                            stars,
-                            features,
-                            likeCount,
-                            productUrl: window.location.href
+                            title: null,
+                            body: text,
+                            rating: stars,
+                            review_date: date,
+                            reviewer_name: name,
+                            reviewer_email: 'anon@example.com',
+                            product_url: null, // will be injected later
+                            picture_urls: image ? image : '',
+                            product_id: null,
+                            product_handle: null, // will be injected later
                         };
-                    }).filter(r => r.text);
+                    }).filter(r => r.body && r.rating);
                 });
+
+                for (const r of reviews) {
+                    r.product_handle = productHandle;
+                    r.product_url = shopifyProductUrl;
+                    allReviews.push(r);
+                }
 
                 log.info(`Extracted ${reviews.length} reviews`);
 
-                if (reviews.length > 0) {
-                    await Actor.pushData(reviews);
-                } else {
-                    log.warning('No reviews found on this page');
-                    const html = await page.content();
-                    await Actor.setValue(`no-reviews-${Date.now()}.html`, html, { contentType: 'text/html' });
-                    await Actor.pushData([{ url: request.url, status: 'NO_REVIEWS', timestamp: new Date().toISOString() }]);
-                }
-
-            } catch (error) {
-                log.error('Scraping failed:', error.message);
-                try {
-                    const screenshot = await page.screenshot({ fullPage: true });
-                    const key = `error-${Date.now()}.png`;
-                    await Actor.setValue(key, screenshot, { contentType: 'image/png' });
-                } catch (screenshotErr) {
-                    log.error('Screenshot capture failed', screenshotErr);
-                }
-                throw error;
+            } catch (err) {
+                log.error('Error scraping reviews:', err.message);
             }
         }
     });
 
     await crawler.run(startUrls);
+
+    if (allReviews.length > 0) {
+        const fs = require('fs');
+        const path = '/mnt/data/OUTPUT.csv';
+        const headers = [
+            'title',
+            'body',
+            'rating',
+            'review_date',
+            'reviewer_name',
+            'reviewer_email',
+            'product_url',
+            'picture_urls',
+            'product_id',
+            'product_handle'
+        ];
+        const csvData = allReviews.map(r => {
+            const row = {};
+            for (const h of headers) row[h] = r[h] || '';
+            return row;
+        });
+
+        const csvWriter = require('csv-writer').createObjectCsvWriter({
+            path,
+            header: headers.map(h => ({ id: h, title: h }))
+        });
+
+        await csvWriter.writeRecords(csvData);
+        await Actor.setValue('OUTPUT.csv', fs.readFileSync(path), { contentType: 'text/csv' });
+        log.info('✅ CSV export complete: OUTPUT.csv');
+    } else {
+        log.warning('No reviews extracted, CSV not created.');
+    }
 });
