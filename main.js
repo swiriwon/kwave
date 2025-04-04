@@ -38,13 +38,18 @@ Actor.main(async () => {
 
         async requestHandler({ page }) {
             try {
-                // Step 1: Search for product
+                // Step 1: Search for the product
                 const searchUrl = `https://global.oliveyoung.com/display/search?query=${searchTerm}`;
                 await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
-                // Step 2: Select first search result
+                // Step 2: Find first product and build full detail URL
                 const productLink = await page.evaluate(() => {
-                    return document.querySelector('.prd_info a.name')?.href || null;
+                    const anchor = document.querySelector('.prd_info a.name');
+                    if (!anchor) return null;
+                    const href = anchor.getAttribute('href');
+                    return href?.startsWith('http')
+                        ? href
+                        : `https://global.oliveyoung.com${href}`;
                 });
 
                 if (!productLink) {
@@ -52,7 +57,7 @@ Actor.main(async () => {
                     return;
                 }
 
-                // Step 3: Open product page and wait for reviews
+                // Step 3: Visit product detail page
                 await page.goto(productLink, { waitUntil: 'networkidle2', timeout: 60000 });
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
