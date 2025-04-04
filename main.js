@@ -5,6 +5,11 @@ import path from 'path';
 import { createObjectCsvWriter } from 'csv-writer';
 
 // Define the output path
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+// For ES Modules, use `import.meta.url` to get the current directory
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const outputFolder = path.join(__dirname, 'output');
 
 // Ensure output folder exists (optional, depending on your setup)
