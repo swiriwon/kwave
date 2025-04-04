@@ -28,3 +28,22 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/${{ github.repository }}:latest
+      
+      - name: Run the scraper to generate the CSV file
+        run: |
+          docker run ghcr.io/${{ github.repository }}:latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit and push the generated CSV file back to GitHub
+        run: |
+          git config --global user.email "you@example.com"
+          git config --global user.name "Your Name"
+          git add review_data.csv  # Ensure that the generated CSV file is named 'review_data.csv'
+          git commit -m "Upload generated CSV file"
+          git push origin main  # Push the changes back to the main branch
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          
