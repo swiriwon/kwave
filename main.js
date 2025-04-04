@@ -1,17 +1,15 @@
 const { Actor } = require('apify');
 const { PuppeteerCrawler, log } = require('@crawlee/puppeteer');
 const { setTimeout } = require('node:timers/promises');
-const { createObjectCsvWriter } = require('csv-writer');
 
 Actor.main(async () => {
     const input = await Actor.getInput();
     const startUrls = input?.startUrls || [];
-    const productHandle = input?.productHandle || 'default-product';
-    const shopifyProductUrl = input?.productUrl || 'https://yourshopifydomain.com/products/' + productHandle;
+    const productHandle = input?.productHandle;
+    const shopDomain = input?.shopDomain || 'https://kwave.ai';
+    const productUrl = `${shopDomain}/products/${productHandle}`;
 
     const allReviews = [];
-
-    log.info('Starting scraper in Judge.me format...');
 
     const crawler = new PuppeteerCrawler({
         maxRequestRetries: 3,
@@ -33,8 +31,7 @@ Actor.main(async () => {
         },
 
         preNavigationHooks: [
-            async (crawlingContext, gotoOptions) => {
-                const { page } = crawlingContext;
+            async ({ page }, gotoOptions) => {
                 await page.setExtraHTTPHeaders({
                     'Accept-Language': 'en-US,en;q=0.9',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -49,8 +46,6 @@ Actor.main(async () => {
         ],
 
         async requestHandler({ page, request }) {
-            log.info(`Processing: ${request.url}`);
-
             try {
                 await page.setDefaultNavigationTimeout(90000);
                 await page.setDefaultTimeout(60000);
@@ -79,30 +74,24 @@ Actor.main(async () => {
                         const stars = (lefts + rights) * 0.5 || null;
 
                         return {
-                            title: null,
                             body: text,
                             rating: stars,
                             review_date: date,
                             reviewer_name: name,
                             reviewer_email: 'anon@example.com',
-                            product_url: null, // will be injected later
-                            picture_urls: image ? image : '',
-                            product_id: null,
-                            product_handle: null, // will be injected later
+                            picture_urls: image || '',
                         };
                     }).filter(r => r.body && r.rating);
                 });
 
                 for (const r of reviews) {
                     r.product_handle = productHandle;
-                    r.product_url = shopifyProductUrl;
+                    r.product_url = productUrl;
                     allReviews.push(r);
                 }
 
-                log.info(`Extracted ${reviews.length} reviews`);
-
             } catch (err) {
-                log.error('Error scraping reviews:', err.message);
+                log.error(`Error processing ${request.url}: ${err.message}`);
             }
         }
     });
@@ -111,9 +100,8 @@ Actor.main(async () => {
 
     if (allReviews.length > 0) {
         const fs = require('fs');
-        const path = '/mnt/data/OUTPUT.csv';
+        const path = '/mnt/data/JUDGEME_OUTPUT.csv';
         const headers = [
-            'title',
             'body',
             'rating',
             'review_date',
@@ -121,24 +109,17 @@ Actor.main(async () => {
             'reviewer_email',
             'product_url',
             'picture_urls',
-            'product_id',
             'product_handle'
         ];
-        const csvData = allReviews.map(r => {
-            const row = {};
-            for (const h of headers) row[h] = r[h] || '';
-            return row;
-        });
-
         const csvWriter = require('csv-writer').createObjectCsvWriter({
             path,
             header: headers.map(h => ({ id: h, title: h }))
         });
 
-        await csvWriter.writeRecords(csvData);
-        await Actor.setValue('OUTPUT.csv', fs.readFileSync(path), { contentType: 'text/csv' });
-        log.info('✅ CSV export complete: OUTPUT.csv');
+        await csvWriter.writeRecords(allReviews);
+        await Actor.setValue('JUDGEME_OUTPUT.csv', fs.readFileSync(path), { contentType: 'text/csv' });
+        log.info('✅ Exported Judge.me-compatible CSV as JUDGEME_OUTPUT.csv');
     } else {
-        log.warning('No reviews extracted, CSV not created.');
+        log.warning('No reviews found or scraped.');
     }
 });
