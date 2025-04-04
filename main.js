@@ -1,14 +1,11 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 import { writeFile } from 'fs/promises';
-import path from 'path';
 import { createObjectCsvWriter } from 'csv-writer';
-
-// Define the output path
 import { fileURLToPath } from 'url';
-import path from 'path';
+import path from 'path'; // Ensure path is imported only once
 
-// For ES Modules, use `import.meta.url` to get the current directory
+// For ES Modules, use import.meta.url to get the current directory
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const outputFolder = path.join(__dirname, 'output');
 
