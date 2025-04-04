@@ -2,6 +2,7 @@ import { Actor } from 'apify';
 import { PuppeteerCrawler, log, Dataset } from '@crawlee/puppeteer';
 import { writeFile } from 'fs';
 import { createObjectCsvWriter } from 'csv-writer';
+import path from 'path';
 
 await Actor.init();
 
@@ -18,6 +19,8 @@ const getRandomName = () => {
     const randomName = names[Math.floor(Math.random() * names.length)];
     return randomName + '****'; // Generate a fake name by appending asterisks to simulate privacy
 };
+
+const outputFolder = '/mnt/data/'; // Ensure the folder exists inside the container for file saving
 
 const crawler = new PuppeteerCrawler({
     maxRequestRetries: 3,
@@ -108,7 +111,7 @@ const crawler = new PuppeteerCrawler({
                 // Save the reviews to a CSV file
                 const currentDate = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
                 const fileName = `scraping_data_${currentDate}.csv`; // Save with the desired filename
-                const filePath = `/home/myuser/app/output/${fileName}`;
+                const filePath = `${outputFolder}${fileName}`;
 
                 const csv = createObjectCsvWriter({
                     path: filePath,
