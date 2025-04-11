@@ -157,12 +157,14 @@ const crawler = new PuppeteerCrawler({
                 
                 const csvHeader = fields.join(',');
                 const csvContent = [csvHeader, ...csvRows].join('\n');  // Correct line break handling
+                
+                // Write the CSV file
                 fs.writeFileSync(filePath, csvContent);
                 
-                // Validate column order in CSV
-                const expectedOrder = fields.join(',');
-                const actualOrder = csvContent.split('\n')[0].replace(/"/g, '');  // Strip quotes for validation
                 try {
+                    // Validate column order in CSV
+                    const expectedOrder = fields.join(',');
+                    const actualOrder = csvContent.split('\n')[0].replace(/"/g, '');  // Strip quotes for validation
                     assert.strictEqual(actualOrder, expectedOrder);
                     log.info('✅ CSV column order verified by unit test.');
                 } catch (error) {
@@ -170,9 +172,6 @@ const crawler = new PuppeteerCrawler({
                     log.warning(`Expected: ${expectedOrder}`);
                     log.warning(`Actual:   ${actualOrder}`);
                     logMismatch('CSV column order does not match expected fields');
-                } catch (err) {
-                    log.error(`Error scraping reviews: ${err.message}`);
-                    logMismatch(`Review extraction error for: ${productName} - ${err.message}`);
                 }
                 
                 // Log file save
@@ -180,6 +179,7 @@ const crawler = new PuppeteerCrawler({
                 
                 // Push data to Apify's Actor output
                 await Actor.pushData(reviews);
+
             
         }
     }
