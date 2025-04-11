@@ -156,8 +156,7 @@ const crawler = new PuppeteerCrawler({
                 const escapeCSV = (value) => {
                     if (value == null) return '';
                     const str = String(value);
-                    return /[",
-                ]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+                    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
                 };
                 
                 const csvRows = orderedReviews.map(r =>
