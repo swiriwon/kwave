@@ -39,8 +39,6 @@ const startUrls = productNames.map(name => ({
     userData: { label: 'SEARCH', productName: name }
 }));
 
-const FAKE_NAMES = [...Array(60).keys()].map(i => `User${i + 1}`);
-
 const crawler = new PuppeteerCrawler({
     maxRequestRetries: 3,
     requestHandlerTimeoutSecs: 120,
@@ -75,7 +73,8 @@ const crawler = new PuppeteerCrawler({
         if (label === 'DETAIL') {
             try {
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
-                const reviews = await page.evaluate(({ productName, FAKE_NAMES }) => {
+                const reviews = await page.evaluate(({ productName }) => {
+                    const FAKE_NAMES = [...Array(60).keys()].map(i => `User${i + 1}`);
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     const usedNames = new Set();
 
@@ -96,6 +95,8 @@ const crawler = new PuppeteerCrawler({
 
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
+                        const getImages = () => Array.from(el.querySelectorAll('img')).map(img => img.src).join(',');
+
                         const nameRaw = getText('.product-review-unit-user-info .review-write-info-writer');
                         const name = nameRaw?.includes('*') ? generateName() : nameRaw;
 
@@ -118,12 +119,12 @@ const crawler = new PuppeteerCrawler({
                             reviewer_name: name,
                             reviewer_email: '',
                             product_url: productUrl,
-                            picture_urls: '',
+                            picture_urls: getImages(),
                             product_id: '',
                             product_handle: ''
                         };
                     }).filter(r => r.body);
-                }, { productName, FAKE_NAMES });
+                }, { productName });
 
                 log.info(`Extracted ${reviews.length} reviews`);
 
