@@ -150,7 +150,15 @@ const crawler = new PuppeteerCrawler({
                     product_id: r.product_id,
                     product_handle: r.product_handle
                 }));
-                const csv = parser.parse(orderedReviews);
+                
+                // Ensure columns are in the desired order
+                const csvRows = orderedReviews.map(r => fields.map(field => r[field]).join(','));
+                
+                // Write the CSV file
+                const csvHeader = fields.join(',');
+                const csvContent = [csvHeader, ...csvRows].join('\n');
+                fs.writeFileSync(filePath, csvContent);
+
                 const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
                 fs.writeFileSync(filePath, csv);
                 log.info(`File saved to: ${filePath}`);
