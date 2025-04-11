@@ -152,15 +152,16 @@ const crawler = new PuppeteerCrawler({
                     product_id: r.product_id,
                     product_handle: r.product_handle
                 }));
-                
-                const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
-                
-                const csvHeader = fields.join(',');
-                const csvContent = [csvHeader, ...csvRows].join(',');  // Keep the join(',') for proper CSV formatting
-                
-                // Write the CSV file
-                fs.writeFileSync(filePath, csvContent);
-                
+
+                try {
+                    const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
+                    
+                    const csvHeader = fields.join(',');
+                    const csvContent = [csvHeader, ...csvRows].join(',');  // Keep the join(',') for proper CSV formatting
+                    
+                    // Write the CSV file
+                    fs.writeFileSync(filePath, csvContent);
+                    
                     // Validate column order in CSV
                     const expectedOrder = fields.join(',');
                     const actualOrder = csvContent.split('\n')[0].replace(/"/g, '');  // Strip quotes for validation
@@ -176,8 +177,6 @@ const crawler = new PuppeteerCrawler({
                 
                 // Push data to Apify's Actor output
                 await Actor.pushData(reviews);
-
-            }
         }
     }
 });
