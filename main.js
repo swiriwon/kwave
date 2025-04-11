@@ -138,6 +138,8 @@ const crawler = new PuppeteerCrawler({
 
                 const fields = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
                 const parser = new Parser({ fields });
+                
+                // Reordered Reviews to ensure columns are in the exact order
                 const orderedReviews = reviews.map(r => ({
                     title: r.title,
                     body: r.body,
@@ -150,26 +152,16 @@ const crawler = new PuppeteerCrawler({
                     product_id: r.product_id,
                     product_handle: r.product_handle
                 }));
-                const csv = parser.parse(orderedReviews);
-                const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
-                const csvHeader = fields.join(',');
-                const escapeCSV = (value) => {
-                    if (value == null) return '';
-                    const str = String(value);
-                    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-                };
                 
-                const csvRows = orderedReviews.map(r =>
-                    fields.map(f => escapeCSV(r[f])).join(',')
-                );
-                                const csvContent = [csvHeader, ...csvRows].join('\n');
+                const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
+                
+                const csvHeader = fields.join(',');
+                const csvContent = [csvHeader, ...csvRows].join('\n');  // Ensure line breaks are properly added
                 fs.writeFileSync(filePath, csvContent);
-                log.info(`File saved to: ${filePath}`);
-                await Actor.pushData(reviews);
-
+                
                 // Validate column order in CSV
                 const expectedOrder = fields.join(',');
-                const actualOrder = csv.split('\n')[0].replace(/"/g, '');
+                const actualOrder = csvContent.split('\n')[0].replace(/"/g, '');  // Strip quotes for validation
                 try {
                     assert.strictEqual(actualOrder, expectedOrder);
                     log.info('✅ CSV column order verified by unit test.');
@@ -179,10 +171,13 @@ const crawler = new PuppeteerCrawler({
                     log.warning(`Actual:   ${actualOrder}`);
                     logMismatch('CSV column order does not match expected fields');
                 }
-            } catch (err) {
-                log.error(`Error scraping reviews: ${err.message}`);
-                logMismatch(`Review extraction error for: ${productName} - ${err.message}`);
-            }
+                
+                // Log file save
+                log.info(`File saved to: ${filePath}`);
+                
+                // Push data to Apify's Actor output
+                await Actor.pushData(reviews);
+            
         }
     }
 });
