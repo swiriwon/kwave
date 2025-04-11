@@ -85,7 +85,7 @@ const crawler = new PuppeteerCrawler({
                     ];
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     const usedNames = new Set();
-
+        
                     const generateName = () => {
                         let name;
                         do {
@@ -94,20 +94,20 @@ const crawler = new PuppeteerCrawler({
                         usedNames.add(name);
                         return name;
                     };
-
+        
                     const sanitize = str => str.toLowerCase()
                         .replace(/\s*\/\s*/g, '-')
                         .replace(/[(),/]/g, '')
                         .replace(/\s+/g, '-')
                         .replace(/-+/g, '-');
-
+        
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
                         const getImages = () => Array.from(el.querySelectorAll('img')).map(img => img.src).join(',');
-
+        
                         const nameRaw = getText('.product-review-unit-user-info .review-write-info-writer');
                         const name = (!nameRaw || nameRaw.includes('*') || nameRaw.trim() === '') ? generateName() : nameRaw;
-
+        
                         const date = getText('.product-review-unit-user-info .review-write-info-date');
                         const text = getText('.review-unit-cont-comment');
                         const stars = (() => {
@@ -116,9 +116,9 @@ const crawler = new PuppeteerCrawler({
                             const rights = box?.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length || 0;
                             return (lefts + rights) * 0.5 || null;
                         })();
-
+        
                         const productUrl = `https://kwave.ai/products/${sanitize(productName)}`;
-
+        
                         return {
                             title: productName,
                             body: text,
@@ -133,12 +133,12 @@ const crawler = new PuppeteerCrawler({
                         };
                     }).filter(r => r.body);
                 }, { productName });
-
+        
                 log.info(`Extracted ${reviews.length} reviews`);
-
+        
                 const fields = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
                 const parser = new Parser({ fields });
-
+        
                 const orderedReviews = reviews.map(r => ({
                     title: r.title,
                     body: r.body,
@@ -151,15 +151,18 @@ const crawler = new PuppeteerCrawler({
                     product_id: r.product_id,
                     product_handle: r.product_handle
                 }));
-
+        
+                // Define filePath variable before using it
+                const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
+        
                 const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
-
+        
                 const csvHeader = fields.join(',');
                 const csvContent = [csvHeader, ...csvRows].join(',');  // Keep the join(',') for proper CSV formatting
-
+        
                 // Write the CSV file
                 fs.writeFileSync(filePath, csvContent);
-
+        
                 // Validate column order in CSV
                 const expectedOrder = fields.join(',');
                 const actualOrder = csvContent.split('\n')[0].replace(/"/g, '');  // Strip quotes for validation
@@ -169,10 +172,10 @@ const crawler = new PuppeteerCrawler({
                 log.error(`Error while writing CSV or validating column order: ${err.message}`);
                 logMismatch('CSV generation or column order validation failed.');
             }
-
+        
             // Log file save
             log.info(`File saved to: ${filePath}`);
-
+        
             // Push data to Apify's Actor output
             await Actor.pushData(reviews);
         }
