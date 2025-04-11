@@ -16,7 +16,7 @@ const records = parse(csvText, {
     columns: true,
     skip_empty_lines: true,
 });
-const productNames = [...new Set(records.map(row => row['title']).filter(Boolean))];
+const productNames = [...new Set(records.map(row => row['Title']).filter(Boolean))];
 log.info(`Parsed ${productNames.length} unique product names.`);
 
 const startUrls = productNames.map(name => ({
