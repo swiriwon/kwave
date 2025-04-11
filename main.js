@@ -1,121 +1,153 @@
 import { Actor } from 'apify';
-import { PuppeteerCrawler, Dataset, log } from 'crawlee';
-import { parse } from 'csv-parse/sync';
+import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
+import { writeFile } from 'fs';
+import path from 'path';
+import fs from 'fs';
 import fetch from 'node-fetch';
+import { parse } from 'csv-parse/sync';
 
 await Actor.init();
 
 const input = await Actor.getInput();
 const PRODUCT_LIST_URL = input.productListUrl;
 
-if (!PRODUCT_LIST_URL) {
-    throw new Error('No product list URL provided in input.');
-}
-
 log.info(`Fetching CSV from: ${PRODUCT_LIST_URL}`);
 const response = await fetch(PRODUCT_LIST_URL);
 const csvText = await response.text();
 
-// ✅ Replace column title with correct one if different
 const records = parse(csvText, {
     columns: true,
     skip_empty_lines: true,
 });
 
-// 🔧 Use a console log to inspect column names if needed
-const firstRow = records[0];
-log.info('Column keys in first row:', Object.keys(firstRow));
-
-const productNames = [...new Set(records.map(row => row['title']).filter(Boolean))];
-log.info(`Parsed ${productNames.length} unique product names.`);
-
+// ⛏ Get product names from 2nd column (adjust the key if needed)
+const productNames = [...new Set(records.map(row => row['2. column 2']).filter(Boolean))];
 const startUrls = productNames.map(name => ({
     url: `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(name)}`,
-    userData: { searchName: name },
+    userData: { searchName: name }
 }));
 
+log.info('Starting scraper...');
+
+const outputFolder = '/home/myuser/app/output/';
+if (!fs.existsSync(outputFolder)) {
+    log.info(`Creating directory: ${outputFolder}`);
+    fs.mkdirSync(outputFolder, { recursive: true });
+} else {
+    log.info(`Directory exists: ${outputFolder}`);
+}
+
 const crawler = new PuppeteerCrawler({
-    async requestHandler({ page, request, enqueueLinks }) {
-        const { searchName } = request.userData;
-        log.info(`Searching for: ${searchName}`);
-
-        const bodyText = await page.content();
-        if (bodyText.includes("There are no search results")) {
-            log.warning(`No result for: ${searchName}`);
-            return;
+    maxRequestRetries: 3,
+    requestHandlerTimeoutSecs: 120,
+    navigationTimeoutSecs: 90,
+    launchContext: {
+        launchOptions: {
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--window-size=1280,1024',
+                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            ]
         }
-
-        const productLinks = await page.$$eval('ul.prd_list_type1 > li > a', links =>
-            links.map(link => ({
-                title: link.innerText,
-                href: link.getAttribute('href'),
-            }))
-        );
-
-        const match = productLinks.find(p => p.title.includes(searchName));
-        if (!match || !match.href) {
-            log.warning(`No matching product for: ${searchName}`);
-            return;
-        }
-
-        const url = new URL(match.href, 'https://global.oliveyoung.com');
-        const productId = url.searchParams.get('prdtNo');
-
-        if (!productId) {
-            log.warning(`Product ID not found for: ${searchName}`);
-            return;
-        }
-
-        const productUrl = `https://global.oliveyoung.com/product/detail?prdtNo=${productId}`;
-        log.info(`Enqueuing product detail page: ${productUrl}`);
-
-        await request.queue.addRequest({
-            url: productUrl,
-            userData: { searchName, productId },
-            label: 'DETAIL'
-        });
     },
-
-    async failedRequestHandler({ request }) {
-        log.error(`Failed to process: ${request.url}`);
-    },
-
-    requestHandler: async ({ request, page }) => {
-        if (request.label !== 'DETAIL') return;
-
-        const { searchName, productId } = request.userData;
-
-        const reviews = await page.$$eval('.review_list ul li', nodes => {
-            return nodes.map((el, i) => ({
-                id: `${productId}-${i + 1}`,
-                title: el.querySelector('.review_tit')?.innerText || '',
-                body: el.querySelector('.review_txt')?.innerText || '',
-                rating: el.querySelector('.rating span')?.innerText || '',
-                author: el.querySelector('.id')?.innerText || '',
-                created_at: el.querySelector('.date')?.innerText || '',
-                picture_url: el.querySelector('img')?.src || '',
-            }));
-        });
-
-        for (const review of reviews) {
-            await Dataset.pushData({
-                reviewer_name: review.author,
-                reviewer_email: '',
-                rating: review.rating,
-                title: review.title,
-                body: review.body,
-                picture_url: review.picture_url,
-                product_id: '',
-                created_at: review.created_at,
-                url: `https://kwave.kr/products/${searchName.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')}`,
+    preNavigationHooks: [
+        async (context, gotoOptions) => {
+            const { page } = context;
+            await page.setExtraHTTPHeaders({
+                'Accept-Language': 'en-US,en;q=0.9',
             });
+            gotoOptions.timeout = 90000;
+            gotoOptions.waitUntil = 'networkidle2';
         }
+    ],
+    async requestHandler({ page, request, enqueueLinks }) {
+        log.info(`Processing: ${request.url}`);
 
-        log.info(`Scraped ${reviews.length} reviews for: ${searchName}`);
-    },
+        if (request.label === 'DETAIL') {
+            try {
+                await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
+
+                const reviews = await page.evaluate(() => {
+                    const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
+                    return Array.from(reviewElems).slice(0, 10).map(el => {
+                        const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
+                        const name = getText('.product-review-unit-user-info .review-write-info-writer') || 'Anonymous';
+                        const date = getText('.product-review-unit-user-info .review-write-info-date');
+                        const text = getText('.review-unit-cont-comment');
+                        const option = getText('.review-unit-option span');
+                        const image = (() => {
+                            const imgEl = el.querySelector('.review-unit-media img');
+                            if (!imgEl) return null;
+                            return imgEl.src.startsWith('/')
+                                ? `https://global.oliveyoung.com${imgEl.src}`
+                                : imgEl.src;
+                        })();
+                        const stars = (() => {
+                            const box = el.querySelector('.review-star-rating');
+                            const lefts = box?.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length || 0;
+                            const rights = box?.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length || 0;
+                            return (lefts + rights) * 0.5 || null;
+                        })();
+                        const features = {};
+                        el.querySelectorAll('.list-review-evlt li').forEach(li => {
+                            const label = li.querySelector('span')?.innerText?.trim();
+                            const count = li.querySelectorAll('.wrap-icon-star .icon-star.filled').length * 0.5;
+                            if (label) features[label] = count;
+                        });
+
+                        const likeCount = getText('.btn-likey-count');
+
+                        return {
+                            id: `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                            name,
+                            date,
+                            text,
+                            option,
+                            image,
+                            stars,
+                            features,
+                            likeCount,
+                            productUrl: window.location.href
+                        };
+                    }).filter(r => r.text);
+                });
+
+                log.info(`Extracted ${reviews.length} reviews`);
+                const fileName = `${outputFolder}/scraping_data_${new Date().toISOString().split('T')[0]}.csv`;
+                await writeFile(fileName, JSON.stringify(reviews, null, 2), (err) => {
+                    if (err) {
+                        log.error("Failed to save the file", err);
+                    } else {
+                        log.info(`File saved to: ${fileName}`);
+                    }
+                });
+
+                await Actor.pushData(reviews);
+            } catch (err) {
+                log.error(`Failed to extract reviews: ${err.message}`);
+            }
+        } else {
+            const productUrl = await page.evaluate(() => {
+                const linkEl = document.querySelector('.prdt-unit a[href*="/product/detail?prdtNo="]');
+                return linkEl ? linkEl.href : null;
+            });
+
+            if (productUrl) {
+                log.info(`Found 1 product link, enqueuing...`);
+                await enqueueLinks({
+                    urls: [productUrl],
+                    label: 'DETAIL'
+                });
+            } else {
+                log.warning('No product detail link found on search page.');
+            }
+        }
+    }
 });
 
 await crawler.run(startUrls);
-log.info('Scraping complete. Reviews saved to dataset.');
-
 await Actor.exit();
