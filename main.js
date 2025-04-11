@@ -10,8 +10,8 @@ await Actor.init();
 
 // Load the product list from the CSV on GitHub
 const PRODUCT_LIST_URL = 'https://raw.githubusercontent.com/swiriwon/kwave/main/resource/KWAVE_products_export-sample.csv';
-const response = await Actor.fetchRemoteFile(PRODUCT_LIST_URL);
-const csvContent = response.toString('utf-8');
+const response = await fetch(PRODUCT_LIST_URL);
+const csvContent = await response.text();
 const records = parse(csvContent, {
     columns: true,
     skip_empty_lines: true,
