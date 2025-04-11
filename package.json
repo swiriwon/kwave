@@ -1,5 +1,5 @@
 {
-  "name": "Review-scraper",
+  "name": "kwave-review-scraper",
   "version": "1.0.0",
   "description": "Crawler to scrape OliveYoung product reviews",
   "main": "main.js",
