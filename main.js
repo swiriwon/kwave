@@ -3,6 +3,11 @@ import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 import { Parser } from 'json2csv';
 import path from 'path';
 import fs from 'fs';
+const mismatchLogPath = '/home/myuser/app/output/mismatches.log';
+
+function logMismatch(message) {
+    fs.appendFileSync(mismatchLogPath, `${new Date().toISOString()} - ${message}\n`);
+}
 import fetch from 'node-fetch';
 import { parse as csvParse } from 'csv-parse/sync';
 
@@ -81,7 +86,9 @@ const crawler = new PuppeteerCrawler({
                     userData: { productName }
                 });
             } else {
-                log.warn(`No detail link found for product: ${productName}`);
+                const productName = request.url.split('query=')[1]?.replace(/%20/g, ' ');
+                log.warning('No detail link found for product: ' + productName);
+                logMismatch(`No product detail found for: ${productName}`);
             }
         }
 
