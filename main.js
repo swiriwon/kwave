@@ -153,10 +153,10 @@ const crawler = new PuppeteerCrawler({
                     product_handle: r.product_handle
                 }));
                 
-                const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join('\n')); // Ensure columns are in the desired order
+                const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
                 
                 const csvHeader = fields.join(',');
-                const csvContent = [csvHeader, ...csvRows].join('\n');  // Ensure line breaks are properly added
+                const csvContent = [csvHeader, ...csvRows].join('\n');  // Correct line break handling
                 fs.writeFileSync(filePath, csvContent);
                 
                 // Validate column order in CSV
@@ -170,6 +170,9 @@ const crawler = new PuppeteerCrawler({
                     log.warning(`Expected: ${expectedOrder}`);
                     log.warning(`Actual:   ${actualOrder}`);
                     logMismatch('CSV column order does not match expected fields');
+                } catch (err) {
+                    log.error(`Error scraping reviews: ${err.message}`);
+                    logMismatch(`Review extraction error for: ${productName} - ${err.message}`);
                 }
                 
                 // Log file save
@@ -177,6 +180,7 @@ const crawler = new PuppeteerCrawler({
                 
                 // Push data to Apify's Actor output
                 await Actor.pushData(reviews);
+
             
         }
     }
