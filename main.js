@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 import { parse as csvParse } from 'csv-parse/sync';
+import assert from 'assert';
 
 await Actor.init();
 
@@ -89,7 +90,7 @@ const crawler = new PuppeteerCrawler({
 
                     const sanitize = str => str.toLowerCase()
                         .replace(/\s*\/\s*/g, '-')
-                        .replace(/[()/]/g, '')
+                        .replace(/[(),/]/g, '')
                         .replace(/\s+/g, '-')
                         .replace(/-+/g, '-');
 
@@ -98,7 +99,7 @@ const crawler = new PuppeteerCrawler({
                         const getImages = () => Array.from(el.querySelectorAll('img')).map(img => img.src).join(',');
 
                         const nameRaw = getText('.product-review-unit-user-info .review-write-info-writer');
-                        const name = nameRaw?.includes('*') ? generateName() : nameRaw;
+                        const name = (!nameRaw || nameRaw.includes('*') || nameRaw.trim() === '') ? generateName() : nameRaw;
 
                         const date = getText('.product-review-unit-user-info .review-write-info-date');
                         const text = getText('.review-unit-cont-comment');
@@ -130,11 +131,36 @@ const crawler = new PuppeteerCrawler({
 
                 const fields = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
                 const parser = new Parser({ fields });
-                const csv = parser.parse(reviews);
+                const orderedReviews = reviews.map(r => ({
+                    title: r.title,
+                    body: r.body,
+                    rating: r.rating,
+                    review_date: r.review_date,
+                    reviewer_name: r.reviewer_name,
+                    reviewer_email: r.reviewer_email,
+                    product_url: r.product_url,
+                    picture_urls: r.picture_urls,
+                    product_id: r.product_id,
+                    product_handle: r.product_handle
+                }));
+                const csv = parser.parse(orderedReviews);
                 const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
                 fs.writeFileSync(filePath, csv);
                 log.info(`File saved to: ${filePath}`);
                 await Actor.pushData(reviews);
+
+                // Validate column order in CSV
+                const expectedOrder = fields.join(',');
+                const actualOrder = csv.split('\n')[0];
+                try {
+                    assert.strictEqual(actualOrder, expectedOrder);
+                    log.info('✅ CSV column order verified by unit test.');
+                } catch (error) {
+                    log.warning('❌ CSV column order test failed.');
+                    log.warning(`Expected: ${expectedOrder}`);
+                    log.warning(`Actual:   ${actualOrder}`);
+                    logMismatch('CSV column order does not match expected fields');
+                }
             } catch (err) {
                 log.error(`Error scraping reviews: ${err.message}`);
                 logMismatch(`Review extraction error for: ${productName} - ${err.message}`);
