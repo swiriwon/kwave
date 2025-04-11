@@ -147,7 +147,18 @@ const crawler = new PuppeteerCrawler({
 
                 log.info(`Extracted ${reviews.length} reviews`);
 
-                const fields = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
+                const fields = [
+                    'title', 
+                    'body', 
+                    'rating', 
+                    'review_date', 
+                    'reviewer_name', 
+                    'reviewer_email', 
+                    'product_url', 
+                    'picture_urls', 
+                    'product_id', 
+                    'product_handle'
+                ];
                 const parser = new Parser({ fields });
                 const csv = parser.parse(reviews);
                 const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
