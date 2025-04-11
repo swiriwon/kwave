@@ -1,135 +1,148 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
-import { writeFile } from 'fs/promises';
+import { writeFileSync } from 'fs';
 import path from 'path';
 import fs from 'fs';
 import https from 'https';
-import { parse } from 'csv-parse/sync';
+import parse from 'csv-parse/lib/sync';
 
 await Actor.init();
 
 log.info('Starting scraper...');
 
-// URL to the KWAVE CSV product list on GitHub
 const PRODUCT_LIST_URL = 'https://raw.githubusercontent.com/swiriwon/kwave/main/resource/KWAVE_products_export-sample.csv';
-
-// Fetch and parse the CSV
 log.info(`Fetching CSV from: ${PRODUCT_LIST_URL}`);
-const response = await new Promise((resolve, reject) => {
+
+const csvContent = await new Promise((resolve, reject) => {
     https.get(PRODUCT_LIST_URL, res => {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => resolve(data));
-    }).on('error', reject);
+    }).on('error', err => reject(err));
 });
 
-const records = parse(response, {
-    columns: true,
-    skip_empty_lines: true
-});
+const records = parse(csvContent, { columns: true });
+log.info(`CSV column headers: ${Object.keys(records[0])}`);
 
-console.log('CSV column headers:', Object.keys(records[0] || {}));
-const productNames = [...new Set(records.map(r => r["Title"]?.trim()).filter(Boolean))];
+const titleColumn = 'Title';
+const productNames = [...new Set(records.map(r => r[titleColumn]?.trim()).filter(Boolean))];
 log.info(`Parsed ${productNames.length} unique product names.`);
 
 const startUrls = productNames.map(name => ({
     url: `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(name)}`,
-    userData: { name }
+    userData: { originalName: name }
 }));
 
-// Create output folder
 const outputFolder = '/home/myuser/app/output/';
 if (!fs.existsSync(outputFolder)) {
     log.info(`Creating directory: ${outputFolder}`);
     fs.mkdirSync(outputFolder, { recursive: true });
 }
 
-// Setup crawler
+const expandName = (short) => {
+    const clean = short.replace(/[^a-zA-Z]/g, '').toLowerCase();
+    const map = {
+        su: 'Susan',
+        ka: 'Karan',
+        mi: 'Michael',
+        an: 'Anna',
+        so: 'Sophie',
+        da: 'Daniel'
+    };
+    return map[clean.slice(0, 2)] || (clean.charAt(0).toUpperCase() + clean.slice(1) + 'son');
+};
+
+const cleanProductHandle = (name) => {
+    return name
+        .toLowerCase()
+        .replace(/[()]/g, '')
+        .replace(/ \/ /g, '-') // space-slash-space to dash
+        .replace(/\s*\/\s*/g, '-') // single slash with optional space to dash
+        .replace(/\s+/g, '-') // spaces to dash
+        .replace(/--+/g, '-'); // collapse multiple dashes
+};
+
 const crawler = new PuppeteerCrawler({
-    maxRequestRetries: 2,
+    maxRequestRetries: 3,
     requestHandlerTimeoutSecs: 120,
     navigationTimeoutSecs: 90,
 
     launchContext: {
         launchOptions: {
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            args: ['--no-sandbox']
         }
     },
 
-    preNavigationHooks: [
-        async (context, gotoOptions) => {
-            const { page } = context;
-            await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
-            gotoOptions.waitUntil = 'networkidle2';
-        }
-    ],
-
     async requestHandler({ page, request, enqueueLinks }) {
-        const { name } = request.userData;
+        const { originalName } = request.userData;
         log.info(`Processing: ${request.url}`);
 
         if (request.label === 'DETAIL') {
-            // --- SCRAPE REVIEWS ---
-            await page.waitForSelector('.product-review-unit.isChecked', { timeout: 15000 });
+            try {
+                await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
-            const reviews = await page.evaluate(() => {
-                const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
-                return Array.from(reviewElems).slice(0, 10).map(el => {
-                    const getText = sel => el.querySelector(sel)?.innerText?.trim() || '';
+                const reviews = await page.evaluate(() => {
+                    const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
+                    return Array.from(reviewElems).slice(0, 10).map(el => {
+                        const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || '';
 
-                    const nameRaw = getText('.review-write-info-writer');
-                    const name = nameRaw.includes('***') ? nameRaw.replace(/\*+/g, 'a') : nameRaw;
+                        const rawName = getText('.product-review-unit-user-info .review-write-info-writer');
+                        const date = getText('.product-review-unit-user-info .review-write-info-date');
+                        const text = getText('.review-unit-cont-comment');
+                        const image = (() => {
+                            const imgEl = el.querySelector('.review-unit-media img');
+                            return imgEl?.src?.startsWith('/')
+                                ? `https://global.oliveyoung.com${imgEl.src}`
+                                : imgEl?.src || '';
+                        })();
+                        const stars = (() => {
+                            const box = el.querySelector('.review-star-rating');
+                            const lefts = box?.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length || 0;
+                            const rights = box?.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length || 0;
+                            return (lefts + rights) * 0.5 || null;
+                        })();
 
-                    const date = getText('.review-write-info-date');
-                    const text = getText('.review-unit-cont-comment');
-                    const stars = el.querySelectorAll('.icon-star.filled').length * 0.5;
-
-                    const img = el.querySelector('.review-unit-media img');
-                    const imageUrl = img ? (img.src.startsWith('/') ? `https://global.oliveyoung.com${img.src}` : img.src) : '';
-
-                    return {
-                        title: '',
-                        body: text,
-                        rating: stars,
-                        review_date: date,
-                        reviewer_name: name,
-                        reviewer_email: '',
-                        product_url: '',  // set later
-                        product_id: '',
-                        product_handle: ''
-                    };
+                        return {
+                            title: '',
+                            body: text,
+                            rating: stars,
+                            review_date: date,
+                            reviewer_name: rawName,
+                            reviewer_email: '',
+                            product_url: window.location.href,
+                            picture_urls: image,
+                            product_id: '',
+                            product_handle: ''
+                        };
+                    }).filter(r => r.body);
                 });
-            });
 
-            for (const r of reviews) {
-                const kwaveUrl = `https://kwave.ai/products/${name.toLowerCase().replace(/ /g, '-')}`;
-                r.product_url = kwaveUrl;
-                r.product_handle = name.toLowerCase().replace(/ /g, '-');
+                reviews.forEach(r => {
+                    r.reviewer_name = expandName(r.reviewer_name?.replace(/^by\s*/i, ''));
+                    r.product_handle = cleanProductHandle(originalName);
+                    r.product_url = `https://kwave.ai/products/${r.product_handle}`;
+                });
+
+                const filePath = path.join(outputFolder, `scraped_reviews_${new Date().toISOString().split('T')[0]}.json`);
+                writeFileSync(filePath, JSON.stringify(reviews, null, 2));
+                log.info(`File saved to: ${filePath}`);
+
+                await Actor.pushData(reviews);
+            } catch (err) {
+                log.error(`Error scraping reviews: ${err.message}`);
             }
-
-            const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
-            const csvContent = [
-                'title,body,rating,review_date,reviewer_name,reviewer_email,product_url,product_id,product_handle',
-                ...reviews.map(r => `"${r.title}","${r.body}","${r.rating}","${r.review_date}","${r.reviewer_name}","${r.reviewer_email}","${r.product_url}","${r.product_id}","${r.product_handle}"`)
-            ].join('\n');
-
-            await writeFile(filePath, csvContent);
-            log.info(`Saved reviews to CSV: ${filePath}`);
-            await Actor.pushData(reviews);
-
         } else {
-            // --- FIND PRODUCT LINK ---
             const productUrl = await page.evaluate(() => {
-                const el = document.querySelector('.prdt-unit a[href*="/product/detail?prdtNo="]');
-                return el ? el.href : null;
+                const linkEl = document.querySelector('.prdt-unit a[href*="/product/detail?prdtNo="]');
+                return linkEl ? linkEl.href : null;
             });
 
             if (productUrl) {
                 log.info(`Found product detail link. Enqueuing...`);
-                await enqueueLinks({ urls: [productUrl], label: 'DETAIL', userData: request.userData });
+                await enqueueLinks({ urls: [productUrl], label: 'DETAIL' });
             } else {
-                log.warning(`No detail link found for product: ${name}`);
+                log.warn(`No detail link found for product: ${originalName}`);
             }
         }
     }
