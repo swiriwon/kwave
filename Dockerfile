@@ -24,4 +24,5 @@ RUN npm install --quiet --omit=dev --no-optional && \
 COPY . .
 
 # Default command
-CMD ["sh", "-c", "NODE_PATH=./node_modules node main.js"]
+CMD ["node", "--experimental-specifier-resolution=node", "main.js"]
+
