@@ -98,6 +98,7 @@ const crawler = new PuppeteerCrawler({
                     const sanitize = str => str.toLowerCase()
                         .replace(/\s*\/\s*/g, '-')
                         .replace(/[(),/]/g, '')
+                        .replace(/['"]/g, '')
                         .replace(/\s+/g, '-')
                         .replace(/-+/g, '-');
 
