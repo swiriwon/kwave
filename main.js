@@ -162,8 +162,7 @@ const crawler = new PuppeteerCrawler({
                 const csvRows = orderedReviews.map(r =>
                     fields.map(f => escapeCSV(r[f])).join(',')
                 );
-                                const csvContent = [csvHeader, ...csvRows].join('
-                ');
+                                const csvContent = [csvHeader, ...csvRows].join('\n');
                 fs.writeFileSync(filePath, csvContent);
                 log.info(`File saved to: ${filePath}`);
                 await Actor.pushData(reviews);
