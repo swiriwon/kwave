@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "apify": "^3.4.0",
+    "csv-parse": "^5.5.2",
     "csv-writer": "^1.6.0",
     "@crawlee/basic": "3.13.2",
     "@crawlee/core": "^3.13.2",
