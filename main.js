@@ -38,18 +38,6 @@ const startUrls = productNames.map(name => ({
     userData: { label: 'SEARCH', title: name }
 }));
 
-const sanitize = (str) => str
-    .toLowerCase()
-    .replace(/[\/\s]+/g, '-')
-    .replace(/[()]/g, '')
-    .replace(/[^a-z0-9\-]/g, '');
-
-const generateName = (partial) => {
-    const names = ['Aaron', 'Bella', 'Cameron', 'Diana', 'Ethan', 'Fiona', 'George', 'Hannah', 'Ivan', 'Julia', 'Karan', 'Luna', 'Mason', 'Nina', 'Oscar', 'Penny', 'Quinn', 'Ryan', 'Sophia', 'Tyler'];
-    const index = partial.toLowerCase().charCodeAt(0) % names.length;
-    return names[index];
-};
-
 const crawler = new PuppeteerCrawler({
     maxRequestRetries: 3,
     requestHandlerTimeoutSecs: 120,
@@ -75,12 +63,24 @@ const crawler = new PuppeteerCrawler({
             try {
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
-                const reviews = await page.evaluate(({ title, sanitize, generateName }) => {
+                const reviews = await page.evaluate((productTitle) => {
+                    const sanitize = (str) =>
+                        str.toLowerCase()
+                            .replace(/[\s\/]+/g, '-')
+                            .replace(/[()]/g, '')
+                            .replace(/[^a-z0-9\-]/g, '');
+
+                    const generateName = (partial) => {
+                        const names = ['Aaron', 'Bella', 'Cameron', 'Diana', 'Ethan', 'Fiona', 'George', 'Hannah', 'Ivan', 'Julia', 'Karan', 'Luna', 'Mason', 'Nina', 'Oscar', 'Penny', 'Quinn', 'Ryan', 'Sophia', 'Tyler'];
+                        const index = partial.toLowerCase().charCodeAt(0) % names.length;
+                        return names[index];
+                    };
+
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (sel) => el.querySelector(sel)?.innerText?.trim() || '';
-                        const nameRaw = getText('.product-review-unit-user-info .review-write-info-writer').replace(/^by\.\s*/i, '');
-                        const name = nameRaw.length >= 3 ? nameRaw : generateName(nameRaw);
+                        let nameRaw = getText('.product-review-unit-user-info .review-write-info-writer').replace(/^by\.\s*/i, '');
+                        if (nameRaw.length < 3) nameRaw = generateName(nameRaw);
 
                         const stars = (() => {
                             const box = el.querySelector('.review-star-rating');
@@ -90,22 +90,22 @@ const crawler = new PuppeteerCrawler({
                         })();
 
                         return {
-                            title: title,
+                            title: productTitle,
                             body: getText('.review-unit-cont-comment'),
                             rating: stars,
                             review_date: getText('.product-review-unit-user-info .review-write-info-date'),
-                            reviewer_name: name,
+                            reviewer_name: nameRaw,
                             reviewer_email: '',
-                            product_url: `https://kwave.ai/products/${sanitize(title)}`,
+                            product_url: `https://kwave.ai/products/${sanitize(productTitle)}`,
                             picture_urls: (() => {
                                 const img = el.querySelector('.review-unit-media img');
                                 return img ? (img.src.startsWith('/') ? `https://global.oliveyoung.com${img.src}` : img.src) : '';
                             })(),
                             product_id: '',
-                            product_handle: sanitize(title),
+                            product_handle: sanitize(productTitle),
                         };
                     }).filter(r => r.body);
-                }, { title, sanitize: sanitize.toString(), generateName: generateName.toString() });
+                }, title);
 
                 log.info(`Extracted ${reviews.length} reviews`);
 
