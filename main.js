@@ -2,96 +2,109 @@ import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 import fs from 'fs';
 import path from 'path';
+import { parse } from 'csv-parse/sync';
 import { createObjectCsvWriter } from 'csv-writer';
+import fetch from 'node-fetch';
 
 await Actor.init();
 
-const input = await Actor.getInput();
-const startUrls = input?.startUrls || [];
-
-const outputFolder = '/home/myuser/app/output/';
-if (!fs.existsSync(outputFolder)) {
-    log.info(`Creating directory: ${outputFolder}`);
-    fs.mkdirSync(outputFolder, { recursive: true });
+const OUTPUT_DIR = path.resolve('./output');
+if (!fs.existsSync(OUTPUT_DIR)) {
+    fs.mkdirSync(OUTPUT_DIR);
 }
 
-const formattedReviews = [];
-const mismatched = [];
+const PRODUCT_CSV_URL = 'https://raw.githubusercontent.com/swiriwon/kwave/main/resource/KWAVE_products_export-sample.csv';
+
+const fetchProductNames = async () => {
+    const response = await fetch(PRODUCT_CSV_URL);
+    const csvText = await response.text();
+    const records = parse(csvText, { columns: true, skip_empty_lines: true });
+    const productNames = [...new Set(records.map(row => row['Title']).filter(Boolean))];
+    return productNames;
+};
+
+const productNames = await fetchProductNames();
+
+const reviews = [];
 
 const crawler = new PuppeteerCrawler({
+    maxConcurrency: 1,
     maxRequestRetries: 2,
-    requestHandlerTimeoutSecs: 60,
-    navigationTimeoutSecs: 60,
+    async requestHandler({ page, request }) {
+        log.info(`Searching for: ${request.userData.productName}`);
+        await page.waitForSelector('.sch-prod-list-wrap');
 
-    async requestHandler({ request, page, enqueueLinks }) {
-        const searchKeyword = request.userData.productName;
-        log.info(`Searching for: ${searchKeyword}`);
-
-        if (request.label === 'DETAIL') {
-            try {
-                await page.waitForSelector('.product-review-unit.isChecked', { timeout: 15000 });
-
-                const reviews = await page.evaluate(() => {
-                    const elements = document.querySelectorAll('.product-review-unit.isChecked');
-                    return Array.from(elements).slice(0, 10).map(el => {
-                        const getText = sel => el.querySelector(sel)?.innerText?.trim() || '';
-                        const getImage = () => {
-                            const img = el.querySelector('.review-unit-media img');
-                            return img ? (img.src.startsWith('/') ? `https://global.oliveyoung.com${img.src}` : img.src) : '';
-                        };
-                        const stars = () => {
-                            const left = el.querySelectorAll('.icon-star.left.filled').length;
-                            const right = el.querySelectorAll('.icon-star.right.filled').length;
-                            return (left + right) * 0.5;
-                        };
-                        return {
-                            title: getText('.review-unit-tit') || 'Review',
-                            body: getText('.review-unit-cont-comment'),
-                            rating: stars(),
-                            review_date: getText('.review-write-info-date'),
-                            reviewer_name: getText('.review-write-info-writer') || 'Anonymous',
-                            reviewer_email: '',
-                            product_url: window.location.href,
-                            picture_urls: getImage(),
-                            product_id: '',
-                            product_handle: '',
-                        };
-                    });
-                });
-
-                formattedReviews.push(...reviews);
-            } catch (err) {
-                log.warning(`Failed to get reviews: ${err.message}`);
+        const foundProduct = await page.evaluate((productName) => {
+            const nodes = Array.from(document.querySelectorAll('.prd-info'));
+            for (const node of nodes) {
+                const name = node.querySelector('.prd-name')?.innerText?.trim();
+                const url = node.querySelector('a')?.href;
+                if (name?.toLowerCase() === productName.toLowerCase() && url?.includes('prdtNo=')) {
+                    const match = url.match(/prdtNo=(GA[0-9]+)/);
+                    return match ? match[1] : null;
+                }
             }
+            return null;
+        }, request.userData.productName);
+
+        if (foundProduct) {
+            const detailUrl = `https://global.oliveyoung.com/product/detail?prdtNo=${foundProduct}`;
+            log.info(`Product found. Navigating to detail page: ${detailUrl}`);
+            await crawler.addRequests([{ url: detailUrl, userData: { ...request.userData, label: 'DETAIL', productId: foundProduct } }]);
         } else {
-            // Result page search
-            const result = await page.evaluate(() => {
-                const el = document.querySelector('.prdt-unit a[href*="product/detail?prdtNo="]');
-                return el ? el.href : '';
-            });
-
-            if (result) {
-                await enqueueLinks({ urls: [result], label: 'DETAIL', userData: request.userData });
-            } else {
-                log.warning(`No match for: ${searchKeyword}`);
-                mismatched.push({ productName: searchKeyword });
-            }
+            log.warning(`No product found for: ${request.userData.productName}`);
+            const noMatchFile = path.join(OUTPUT_DIR, `mismatched_${new Date().toISOString().split('T')[0]}.csv`);
+            fs.appendFileSync(noMatchFile, `${request.userData.productName}\n`);
         }
-    }
+    },
+    async failedRequestHandler({ request }) {
+        log.error(`Request failed: ${request.url}`);
+    },
 });
 
-const requests = startUrls.map(({ url }) => ({
-    url: `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(url)}`,
-    userData: { productName: url },
-}));
-await crawler.run(requests);
+const detailCrawler = new PuppeteerCrawler({
+    maxConcurrency: 1,
+    async requestHandler({ page, request }) {
+        const reviewsOnPage = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('.product-review-unit.isChecked')).map(el => ({
+                body: el.querySelector('.review-unit-cont-comment')?.innerText.trim(),
+                rating: el.querySelectorAll('.wrap-icon-star .icon-star.filled').length * 0.5,
+                review_date: el.querySelector('.review-write-info-date')?.innerText.trim(),
+                reviewer_name: el.querySelector('.review-write-info-writer')?.innerText.trim() || 'Anonymous',
+                picture_urls: el.querySelector('.review-unit-media img')?.src || '',
+            }));
+        });
 
-const date = new Date().toISOString().split('T')[0];
-const reviewFilePath = path.join(outputFolder, `scraped_reviews_${date}.csv`);
-const mismatchFilePath = path.join(outputFolder, `mismatched_products_${date}.csv`);
+        const productHandle = request.userData.productName.toLowerCase().replace(/\s+/g, '-');
+        const productUrl = `https://kwave.ai/products/${productHandle}`;
 
+        for (const r of reviewsOnPage) {
+            reviews.push({
+                title: request.userData.productName,
+                body: r.body,
+                rating: r.rating || '',
+                review_date: r.review_date || '',
+                reviewer_name: r.reviewer_name,
+                reviewer_email: '',
+                product_url: productUrl,
+                picture_urls: r.picture_urls,
+                product_id: '',
+                product_handle: productHandle,
+            });
+        }
+    },
+});
+
+await crawler.run(productNames.map(name => ({
+    url: `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(name)}`,
+    userData: { productName: name }
+})));
+
+await detailCrawler.run([]);
+
+const outputPath = path.join(OUTPUT_DIR, `scraped_reviews_${new Date().toISOString().split('T')[0]}.csv`);
 const csvWriter = createObjectCsvWriter({
-    path: reviewFilePath,
+    path: outputPath,
     header: [
         { id: 'title', title: 'title' },
         { id: 'body', title: 'body' },
@@ -103,17 +116,9 @@ const csvWriter = createObjectCsvWriter({
         { id: 'picture_urls', title: 'picture_urls' },
         { id: 'product_id', title: 'product_id' },
         { id: 'product_handle', title: 'product_handle' },
-    ],
+    ]
 });
-await csvWriter.writeRecords(formattedReviews);
+await csvWriter.writeRecords(reviews);
+log.info(`Scraped reviews saved to ${outputPath}`);
 
-if (mismatched.length) {
-    const mismatchWriter = createObjectCsvWriter({
-        path: mismatchFilePath,
-        header: [{ id: 'productName', title: 'productName' }],
-    });
-    await mismatchWriter.writeRecords(mismatched);
-}
-
-log.info(`Scraping complete. Reviews saved to: ${reviewFilePath}`);
 await Actor.exit();
