@@ -154,17 +154,17 @@ const crawler = new PuppeteerCrawler({
                 const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
                 const csvHeader = fields.join(',');
                 const escapeCSV = (value) => {
-    if (value == null) return '';
-    const str = String(value);
-    return /[",
-]/.test(str) ? `"${str.replace(/"/g, '""')}` : str;
-};
-
-const csvRows = orderedReviews.map(r =>
-    fields.map(f => escapeCSV(r[f])).join(',')
-);
-                const csvContent = [csvHeader, ...csvRows].join('
-');
+                    if (value == null) return '';
+                    const str = String(value);
+                    return /[",
+                ]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+                };
+                
+                const csvRows = orderedReviews.map(r =>
+                    fields.map(f => escapeCSV(r[f])).join(',')
+                );
+                                const csvContent = [csvHeader, ...csvRows].join('
+                ');
                 fs.writeFileSync(filePath, csvContent);
                 log.info(`File saved to: ${filePath}`);
                 await Actor.pushData(reviews);
