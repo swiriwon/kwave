@@ -29,7 +29,7 @@ const records = parse(response, {
 });
 
 console.log('CSV column headers:', Object.keys(records[0] || {}));
-const productNames = [...new Set(records.map(r => r.title?.trim()).filter(Boolean))];
+const productNames = [...new Set(records.map(r => r["Title"]?.trim()).filter(Boolean))];
 log.info(`Parsed ${productNames.length} unique product names.`);
 
 const startUrls = productNames.map(name => ({
