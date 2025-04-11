@@ -28,7 +28,8 @@ const records = parse(response, {
     skip_empty_lines: true
 });
 
-const productNames = [...new Set(records.map(r => r.title).filter(Boolean))];
+console.log('CSV column headers:', Object.keys(records[0] || {}));
+const productNames = [...new Set(records.map(r => r.title?.trim()).filter(Boolean))];
 log.info(`Parsed ${productNames.length} unique product names.`);
 
 const startUrls = productNames.map(name => ({
