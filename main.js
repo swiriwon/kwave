@@ -139,7 +139,6 @@ const crawler = new PuppeteerCrawler({
                 const fields = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
                 const parser = new Parser({ fields });
 
-                // Reordered Reviews to ensure columns are in the exact order
                 const orderedReviews = reviews.map(r => ({
                     title: r.title,
                     body: r.body,
@@ -153,30 +152,29 @@ const crawler = new PuppeteerCrawler({
                     product_handle: r.product_handle
                 }));
 
-                try {
-                    const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
-                    
-                    const csvHeader = fields.join(',');
-                    const csvContent = [csvHeader, ...csvRows].join(',');  // Keep the join(',') for proper CSV formatting
-                    
-                    // Write the CSV file
-                    fs.writeFileSync(filePath, csvContent);
-                    
-                    // Validate column order in CSV
-                    const expectedOrder = fields.join(',');
-                    const actualOrder = csvContent.split('\n')[0].replace(/"/g, '');  // Strip quotes for validation
-                    assert.strictEqual(actualOrder, expectedOrder);
-                    log.info('✅ CSV column order verified by unit test.');
-                } catch (err) {
-                    log.error(`Error while writing CSV or validating column order: ${err.message}`);
-                    logMismatch('CSV generation or column order validation failed.');
-                }
-                
-                // Log file save
-                log.info(`File saved to: ${filePath}`);
-                
-                // Push data to Apify's Actor output
-                await Actor.pushData(reviews);
+                const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
+
+                const csvHeader = fields.join(',');
+                const csvContent = [csvHeader, ...csvRows].join(',');  // Keep the join(',') for proper CSV formatting
+
+                // Write the CSV file
+                fs.writeFileSync(filePath, csvContent);
+
+                // Validate column order in CSV
+                const expectedOrder = fields.join(',');
+                const actualOrder = csvContent.split('\n')[0].replace(/"/g, '');  // Strip quotes for validation
+                assert.strictEqual(actualOrder, expectedOrder);
+                log.info('✅ CSV column order verified by unit test.');
+            } catch (err) {
+                log.error(`Error while writing CSV or validating column order: ${err.message}`);
+                logMismatch('CSV generation or column order validation failed.');
+            }
+
+            // Log file save
+            log.info(`File saved to: ${filePath}`);
+
+            // Push data to Apify's Actor output
+            await Actor.pushData(reviews);
         }
     }
 });
