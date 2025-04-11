@@ -139,7 +139,7 @@ const crawler = new PuppeteerCrawler({
                 const fields = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
                 const parser = new Parser({ fields });
                 
-                  // Reordered Reviews to ensure columns are in the exact order
+                // Reordered Reviews to ensure columns are in the exact order
                 const orderedReviews = reviews.map(r => ({
                     title: r.title,
                     body: r.body,
@@ -156,7 +156,7 @@ const crawler = new PuppeteerCrawler({
                 const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
                 
                 const csvHeader = fields.join(',');
-                const csvContent = [csvHeader, ...csvRows].join('\n');  // Ensure proper line breaks
+                const csvContent = [csvHeader, ...csvRows].join('\n');  // Correct line break handling
                 fs.writeFileSync(filePath, csvContent);
                 
                 // Validate column order in CSV
