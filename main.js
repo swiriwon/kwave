@@ -156,11 +156,10 @@ const crawler = new PuppeteerCrawler({
                 const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
                 
                 const csvHeader = fields.join(',');
-                const csvContent = [csvHeader, ...csvRows].join('\n');  // Correct line break handling
+                const csvContent = [csvHeader, ...csvRows].join(',');  // Keep the join(',') for proper CSV formatting
                 
-                try {
-                    // Write the CSV file
-                    fs.writeFileSync(filePath, csvContent);
+                // Write the CSV file
+                fs.writeFileSync(filePath, csvContent);
                 
                     // Validate column order in CSV
                     const expectedOrder = fields.join(',');
