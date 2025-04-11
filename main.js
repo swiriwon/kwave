@@ -1,12 +1,15 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
+import { writeFile } from 'fs';
+import path from 'path';
 import fs from 'fs';
-import { parse } from 'csv-parse/sync';
 import fetch from 'node-fetch';
+import { parse } from 'csv-parse/sync';
 
 await Actor.init();
 
-const PRODUCT_LIST_URL = 'https://raw.githubusercontent.com/swiriwon/kwave/main/resource/KWAVE_products_export-sample.csv';
+const input = await Actor.getInput();
+const PRODUCT_LIST_URL = input?.productListUrl || 'https://raw.githubusercontent.com/swiriwon/kwave/main/resource/KWAVE_products_export-sample.csv';
 const outputFolder = '/home/myuser/app/output/';
 
 if (!fs.existsSync(outputFolder)) {
@@ -22,71 +25,62 @@ const csvText = await response.text();
 
 const records = parse(csvText, {
     columns: true,
-    skip_empty_lines: true,
+    skip_empty_lines: true
 });
 
 log.info(`CSV column headers: ${Object.keys(records[0]).join(', ')}`);
 
-const titles = Array.from(new Set(records.map(row => row['Title']).filter(Boolean)));
+const productNames = [...new Set(records.map(r => r['Title']).filter(Boolean))];
+log.info(`Parsed ${productNames.length} unique product names.`);
 
-log.info(`Parsed ${titles.length} unique product names.`);
-
-function sanitizeProductName(name) {
-    return name
-        .replace(/[\/()]/g, '')
-        .replace(/\s+/g, '-')
-        .toLowerCase();
-}
-
-const startUrls = titles.map(title => ({
-    url: `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(title)}`,
-    userData: { title },
+const startUrls = productNames.map(name => ({
+    url: `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(name)}`,
+    userData: { label: 'SEARCH', title: name }
 }));
+
+const sanitize = (str) => str
+    .toLowerCase()
+    .replace(/[\/\s]+/g, '-')
+    .replace(/[()]/g, '')
+    .replace(/[^a-z0-9\-]/g, '');
+
+const generateName = (partial) => {
+    const names = ['Aaron', 'Bella', 'Cameron', 'Diana', 'Ethan', 'Fiona', 'George', 'Hannah', 'Ivan', 'Julia', 'Karan', 'Luna', 'Mason', 'Nina', 'Oscar', 'Penny', 'Quinn', 'Ryan', 'Sophia', 'Tyler'];
+    const index = partial.toLowerCase().charCodeAt(0) % names.length;
+    return names[index];
+};
 
 const crawler = new PuppeteerCrawler({
     maxRequestRetries: 3,
     requestHandlerTimeoutSecs: 120,
     navigationTimeoutSecs: 90,
-
     launchContext: {
         launchOptions: {
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         }
     },
+    preNavigationHooks: [
+        async (context, gotoOptions) => {
+            const { page } = context;
+            await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
+            gotoOptions.timeout = 90000;
+            gotoOptions.waitUntil = 'networkidle2';
+        }
+    ],
+    async requestHandler({ page, request, enqueueLinks }) {
+        const { label, title } = request.userData;
 
-    async requestHandler({ request, page, enqueueLinks }) {
-        if (request.label === 'DETAIL') {
-            const { title } = request.userData;
+        if (label === 'DETAIL') {
             try {
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
 
-                const reviews = await page.evaluate((title) => {
-                    function normalizeName(masked) {
-                        const firstChar = masked[0]?.toLowerCase();
-                        return {
-                            's': 'Susan',
-                            'k': 'Karan',
-                            'h': 'Hanna',
-                            'j': 'James',
-                            'a': 'Alice',
-                            'b': 'Brian',
-                        }[firstChar] || 'Customer';
-                    }
-
-                    function sanitize(name) {
-                        return name
-                            .replace(/[\/()]/g, '')
-                            .replace(/\s+/g, '-')
-                            .toLowerCase();
-                    }
-
+                const reviews = await page.evaluate(({ title, sanitize, generateName }) => {
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     return Array.from(reviewElems).slice(0, 10).map(el => {
-                        const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
-
-                        const nameMasked = getText('.product-review-unit-user-info .review-write-info-writer') || 'Su***';
-                        const fullName = nameMasked.replace(/\*/g, '') + ' ' + normalizeName(nameMasked);
+                        const getText = (sel) => el.querySelector(sel)?.innerText?.trim() || '';
+                        const nameRaw = getText('.product-review-unit-user-info .review-write-info-writer').replace(/^by\.\s*/i, '');
+                        const name = nameRaw.length >= 3 ? nameRaw : generateName(nameRaw);
 
                         const stars = (() => {
                             const box = el.querySelector('.review-star-rating');
@@ -96,11 +90,11 @@ const crawler = new PuppeteerCrawler({
                         })();
 
                         return {
-                            title: '',
+                            title: title,
                             body: getText('.review-unit-cont-comment'),
                             rating: stars,
                             review_date: getText('.product-review-unit-user-info .review-write-info-date'),
-                            reviewer_name: fullName.replace(/^by\.\s*/i, ''),
+                            reviewer_name: name,
                             reviewer_email: '',
                             product_url: `https://kwave.ai/products/${sanitize(title)}`,
                             picture_urls: (() => {
@@ -110,45 +104,41 @@ const crawler = new PuppeteerCrawler({
                             product_id: '',
                             product_handle: sanitize(title),
                         };
-                    });
-                }, title);
+                    }).filter(r => r.body);
+                }, { title, sanitize: sanitize.toString(), generateName: generateName.toString() });
+
+                log.info(`Extracted ${reviews.length} reviews`);
 
                 const fileName = `${outputFolder}/scraping_data_${new Date().toISOString().split('T')[0]}.csv`;
-                const orderedReviews = reviews.map(r => ({
-                    title: r.title,
-                    body: r.body,
-                    rating: r.rating,
-                    review_date: r.review_date,
-                    reviewer_name: r.reviewer_name,
-                    reviewer_email: r.reviewer_email,
-                    product_url: r.product_url,
-                    picture_urls: r.picture_urls,
-                    product_id: r.product_id,
-                    product_handle: r.product_handle
-                }));
+                const headers = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
+                const rows = [headers.join(',')].concat(reviews.map(r =>
+                    headers.map(h => `"${(r[h] || '').toString().replace(/"/g, '""')}"`).join(',')
+                ));
 
-                fs.writeFileSync(fileName, JSON.stringify(orderedReviews, null, 2));
-                log.info(`File saved to: ${fileName}`);
+                await writeFile(fileName, rows.join('\n'), (err) => {
+                    if (err) log.error("Failed to save the file", err);
+                    else log.info(`File saved to: ${fileName}`);
+                });
 
-                await Actor.pushData(orderedReviews);
+                await Actor.pushData(reviews);
             } catch (err) {
                 log.error(`Error scraping reviews: ${err.message}`);
             }
         } else {
-            const detailUrl = await page.evaluate(() => {
+            const productUrl = await page.evaluate(() => {
                 const el = document.querySelector('.prdt-unit a[href*="/product/detail?prdtNo="]');
-                return el?.href || null;
+                return el ? el.href : null;
             });
 
-            if (detailUrl) {
-                log.info('Found product detail link. Enqueuing...');
+            if (productUrl) {
+                log.info(`Found product detail link. Enqueuing...`);
                 await enqueueLinks({
-                    urls: [detailUrl],
+                    urls: [productUrl],
                     label: 'DETAIL',
-                    userData: request.userData
+                    userData: { label: 'DETAIL', title }
                 });
             } else {
-                log.warning(`No detail link found for product: ${request.userData.title}`);
+                log.warning(`No detail link found for product: ${title}`);
             }
         }
     }
