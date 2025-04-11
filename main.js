@@ -73,23 +73,17 @@ const crawler = new PuppeteerCrawler({
                     const fakeNames = [
                         'Ariana', 'Blake', 'Carter', 'Daisy', 'Elias', 'Fiona', 'Gavin', 'Hazel',
                         'Ian', 'Jade', 'Karan', 'Lana', 'Milo', 'Nora', 'Owen', 'Paige', 'Quincy', 'Riley',
-                        'Sophie', 'Troy', 'Uma', 'Vera', 'Wyatt', 'Xena', 'Yara', 'Zane',
-                        'Alexis', 'Bryce', 'Chloe', 'Derek', 'Ella', 'Felix', 'Grace', 'Hunter',
-                        'Isla', 'Jake', 'Kylie', 'Liam', 'Maya', 'Noah', 'Olivia', 'Piper',
+                        'Sophie', 'Troy', 'Uma', 'Vera', 'Wyatt', 'Xena', 'Yara', 'Zane', 'Amanda', 'Jolly',
+                        'Alexis', 'Bryce', 'Chloe', 'Derek', 'Ella', 'Felix', 'Grace', 'Hunter', 'Susan', 'Paul',
+                        'Isla', 'Jake', 'Kylie', 'Liam', 'Maya', 'Noah', 'Olivia', 'Piper', 'Lily',
                         'Quinn', 'Ryder', 'Stella', 'Theo', 'Uriel', 'Violet', 'Wes', 'Xavier', 'Yasmine', 'Zara'
                     ];
                 
-                    const getFakeName = (prefix) => {
-                        const seed = prefix.toLowerCase().split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-                        return fakeNames[seed % fakeNames.length];
-                    };
+                    const shuffledNames = fakeNames.sort(() => 0.5 - Math.random());
                 
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
-                    return Array.from(reviewElems).slice(0, 10).map(el => {
+                    return Array.from(reviewElems).slice(0, 10).map((el, index) => {
                         const getText = (sel) => el.querySelector(sel)?.innerText?.trim() || '';
-                        const masked = getText('.product-review-unit-user-info .review-write-info-writer').replace(/^by\.\s*/i, '');
-                        const prefix = masked.replace(/\*/g, '').slice(0, 2);
-                        const reviewerName = getFakeName(prefix || 'xx');
                 
                         const stars = (() => {
                             const box = el.querySelector('.review-star-rating');
@@ -103,7 +97,7 @@ const crawler = new PuppeteerCrawler({
                             body: getText('.review-unit-cont-comment'),
                             rating: stars,
                             review_date: getText('.product-review-unit-user-info .review-write-info-date'),
-                            reviewer_name: reviewerName,
+                            reviewer_name: shuffledNames[index % shuffledNames.length],
                             reviewer_email: '',
                             product_url: `https://kwave.ai/products/${sanitize(productTitle)}`,
                             picture_urls: (() => {
@@ -115,6 +109,7 @@ const crawler = new PuppeteerCrawler({
                         };
                     }).filter(r => r.body);
                 }, title);
+
 
                 log.info(`Extracted ${reviews.length} reviews`);
 
