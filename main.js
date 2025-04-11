@@ -3,38 +3,31 @@ import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 import { writeFile } from 'fs';
 import path from 'path';
 import fs from 'fs';
-import fetch from 'node-fetch';
 import { parse } from 'csv-parse/sync';
+import fetch from 'node-fetch';
 
 await Actor.init();
 
-const input = await Actor.getInput();
-const PRODUCT_LIST_URL = input.productListUrl;
-
+const PRODUCT_LIST_URL = 'https://raw.githubusercontent.com/swiriwon/kwave/main/resource/KWAVE_products_export-sample.csv';
 log.info(`Fetching CSV from: ${PRODUCT_LIST_URL}`);
 const response = await fetch(PRODUCT_LIST_URL);
 const csvText = await response.text();
-
 const records = parse(csvText, {
     columns: true,
     skip_empty_lines: true,
 });
+const productNames = [...new Set(records.map(row => row['title']).filter(Boolean))];
+log.info(`Parsed ${productNames.length} unique product names.`);
 
-// ⛏ Get product names from 2nd column (adjust the key if needed)
-const productNames = [...new Set(records.map(row => row['2. column 2']).filter(Boolean))];
 const startUrls = productNames.map(name => ({
     url: `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(name)}`,
-    userData: { searchName: name }
+    userData: { label: 'SEARCH', productName: name }
 }));
-
-log.info('Starting scraper...');
 
 const outputFolder = '/home/myuser/app/output/';
 if (!fs.existsSync(outputFolder)) {
     log.info(`Creating directory: ${outputFolder}`);
     fs.mkdirSync(outputFolder, { recursive: true });
-} else {
-    log.info(`Directory exists: ${outputFolder}`);
 }
 
 const crawler = new PuppeteerCrawler({
@@ -67,10 +60,9 @@ const crawler = new PuppeteerCrawler({
     async requestHandler({ page, request, enqueueLinks }) {
         log.info(`Processing: ${request.url}`);
 
-        if (request.label === 'DETAIL') {
+        if (request.userData.label === 'DETAIL') {
             try {
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
-
                 const reviews = await page.evaluate(() => {
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     return Array.from(reviewElems).slice(0, 10).map(el => {
@@ -98,7 +90,6 @@ const crawler = new PuppeteerCrawler({
                             const count = li.querySelectorAll('.wrap-icon-star .icon-star.filled').length * 0.5;
                             if (label) features[label] = count;
                         });
-
                         const likeCount = getText('.btn-likey-count');
 
                         return {
@@ -137,13 +128,13 @@ const crawler = new PuppeteerCrawler({
             });
 
             if (productUrl) {
-                log.info(`Found 1 product link, enqueuing...`);
+                log.info(`Found product detail link. Enqueuing...`);
                 await enqueueLinks({
                     urls: [productUrl],
                     label: 'DETAIL'
                 });
             } else {
-                log.warning('No product detail link found on search page.');
+                log.warning(`No detail link found for product: ${request.userData.productName}`);
             }
         }
     }
