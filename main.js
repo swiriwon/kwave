@@ -103,7 +103,7 @@ const crawler = new PuppeteerCrawler({
             });
 
             for (const r of reviews) {
-                const kwaveUrl = `https://kwave.shop/products/${name.toLowerCase().replace(/ /g, '-')}`;
+                const kwaveUrl = `https://kwave.ai/products/${name.toLowerCase().replace(/ /g, '-')}`;
                 r.product_url = kwaveUrl;
                 r.product_handle = name.toLowerCase().replace(/ /g, '-');
             }
