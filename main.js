@@ -153,7 +153,7 @@ const crawler = new PuppeteerCrawler({
                     product_handle: r.product_handle
                 }));
                 
-                const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
+                const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join('\n')); // Ensure columns are in the desired order
                 
                 const csvHeader = fields.join(',');
                 const csvContent = [csvHeader, ...csvRows].join('\n');  // Ensure line breaks are properly added
