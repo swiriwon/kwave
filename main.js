@@ -31,18 +31,6 @@ const titles = Array.from(new Set(records.map(row => row['Title']).filter(Boolea
 
 log.info(`Parsed ${titles.length} unique product names.`);
 
-function normalizeName(masked) {
-    const firstChar = masked[0];
-    return {
-        's': 'Susan',
-        'k': 'Karan',
-        'h': 'Hanna',
-        'j': 'James',
-        'a': 'Alice',
-        'b': 'Brian',
-    }[firstChar.toLowerCase()] || 'Customer';
-}
-
 function sanitizeProductName(name) {
     return name
         .replace(/[\/()]/g, '')
@@ -72,7 +60,27 @@ const crawler = new PuppeteerCrawler({
             const { title } = request.userData;
             try {
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
-                const reviews = await page.evaluate(() => {
+
+                const reviews = await page.evaluate((title) => {
+                    function normalizeName(masked) {
+                        const firstChar = masked[0]?.toLowerCase();
+                        return {
+                            's': 'Susan',
+                            'k': 'Karan',
+                            'h': 'Hanna',
+                            'j': 'James',
+                            'a': 'Alice',
+                            'b': 'Brian',
+                        }[firstChar] || 'Customer';
+                    }
+
+                    function sanitize(name) {
+                        return name
+                            .replace(/[\/()]/g, '')
+                            .replace(/\s+/g, '-')
+                            .toLowerCase();
+                    }
+
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
@@ -92,18 +100,18 @@ const crawler = new PuppeteerCrawler({
                             body: getText('.review-unit-cont-comment'),
                             rating: stars,
                             review_date: getText('.product-review-unit-user-info .review-write-info-date'),
-                            reviewer_name: fullName,
+                            reviewer_name: fullName.replace(/^by\.\s*/i, ''),
                             reviewer_email: '',
-                            product_url: `https://kwave.ai/products/${sanitizeProductName(title)}`,
+                            product_url: `https://kwave.ai/products/${sanitize(title)}`,
                             picture_urls: (() => {
                                 const img = el.querySelector('.review-unit-media img');
                                 return img ? (img.src.startsWith('/') ? `https://global.oliveyoung.com${img.src}` : img.src) : '';
                             })(),
                             product_id: '',
-                            product_handle: sanitizeProductName(title),
+                            product_handle: sanitize(title),
                         };
                     });
-                });
+                }, title);
 
                 const fileName = `${outputFolder}/scraping_data_${new Date().toISOString().split('T')[0]}.csv`;
                 const orderedReviews = reviews.map(r => ({
