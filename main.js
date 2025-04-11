@@ -179,6 +179,7 @@ const crawler = new PuppeteerCrawler({
         
             // Push data to Apify's Actor output
             await Actor.pushData(reviews);
+            }
         }
     }
 });
