@@ -1,112 +1,108 @@
 import { Actor } from 'apify';
-import { PuppeteerCrawler } from '@crawlee/puppeteer';
-import { log } from 'apify';
-import fs from 'fs';
-import path from 'path';
+import { PuppeteerCrawler, log } from 'crawlee';
+import puppeteer from 'puppeteer';
 import { parse } from 'csv-parse/sync';
-import { createObjectCsvWriter } from 'csv-writer';
+import fs from 'fs/promises';
+
+const PRODUCT_LIST_URL = 'https://raw.githubusercontent.com/swiriwon/kwave/main/resource/KWAVE_products_export-sample.csv';
 
 await Actor.init();
 
-// Load the product list from the CSV on GitHub
-const PRODUCT_LIST_URL = 'https://raw.githubusercontent.com/swiriwon/kwave/main/resource/KWAVE_products_export-sample.csv';
+// Fetch and parse the product list CSV
 const response = await fetch(PRODUCT_LIST_URL);
-const csvContent = await response.text();
-const records = parse(csvContent, {
+const csvText = await response.text();
+const records = parse(csvText, {
     columns: true,
-    skip_empty_lines: true,
+    skip_empty_lines: true
 });
 
-const uniqueTitles = [...new Set(records.map(row => row['2. column2']).filter(Boolean))];
-log.info(`Loaded ${uniqueTitles.length} unique product names.`);
+// Extract unique product names from the second column
+const productNames = [...new Set(records.map(row => row['2. column2']).filter(Boolean))];
 
-const failedSearches = [];
+// Prepare output
 const scrapedReviews = [];
 
+// Set up PuppeteerCrawler
 const crawler = new PuppeteerCrawler({
-    launchContext: {
-        launchOptions: {
-            args: ['--no-sandbox', '--disable-setuid-sandbox'], // ✅ Fix for sandbox issue
-        },
-    },
-    async requestHandler({ request, page }) {
-        const searchTerm = request.userData.searchTerm;
-        log.info(`Searching for: ${searchTerm}`);
+    async requestHandler({ page, request }) {
+        const productName = request.userData.productName;
+        log.info(`Searching for: ${productName}`);
+        
+        // Visit search page
+        await page.goto(`https://global.oliveyoung.com/display/search?query=${encodeURIComponent(productName)}`, {
+            waitUntil: 'domcontentloaded'
+        });
 
-        const noResultsSelector = '.result_no';
-        const productLinkSelector = '.prd_info a.name';
-
-        // Wait and detect if product exists
-        const hasResults = await page.waitForSelector(`${noResultsSelector}, ${productLinkSelector}`, { timeout: 10000 });
-        const noResults = await page.$(noResultsSelector);
-
-        if (noResults) {
-            failedSearches.push(searchTerm);
+        // Check if no result
+        const noResult = await page.$eval('.page_title', el => el.textContent.includes('no search results')).catch(() => false);
+        if (noResult) {
+            log.warning(`No results found for: ${productName}`);
             return;
         }
 
-        const firstProduct = await page.$(productLinkSelector);
-        const productHref = await page.evaluate(el => el.getAttribute('href'), firstProduct);
-        const match = productHref.match(/prdtNo=([A-Z0-9]+)/);
-        if (!match) {
-            failedSearches.push(searchTerm);
+        // Find first matched product with ID
+        const productLink = await page.$eval('.prd_info a', el => el.getAttribute('href')).catch(() => null);
+        if (!productLink || !productLink.includes('prdtNo=')) {
+            log.warning(`Product ID not found for: ${productName}`);
             return;
         }
 
-        const productId = match[1];
-        const productDetailUrl = `https://global.oliveyoung.com/product/detail?prdtNo=${productId}`;
+        const productId = productLink.split('prdtNo=')[1];
+        const detailUrl = `https://global.oliveyoung.com/product/detail?prdtNo=${productId}`;
+        log.info(`Found product ID ${productId} for ${productName}`);
 
-        log.info(`Found product ID: ${productId} — ${productDetailUrl}`);
-        await page.goto(productDetailUrl, { waitUntil: 'networkidle2' });
+        // Go to detail page
+        await page.goto(detailUrl, { waitUntil: 'domcontentloaded' });
 
-        const reviews = await page.$$eval('.review_list .atc', nodes =>
-            nodes.map((node, index) => ({
-                product_title: document.querySelector('.prd_info .name')?.innerText?.trim() || '',
-                body: node.innerText?.trim() || '',
-                rating: 5,
-                reviewer_name: 'Anonymous',
+        // Simulate fetching reviews
+        const reviews = await page.$$eval('.review_list li', nodes =>
+            nodes.map(node => ({
+                review_title: '',
+                review_content: node.querySelector('.review_cont')?.textContent.trim() || '',
+                review_rating: node.querySelector('.rating_star .on')?.getAttribute('style')?.match(/\d+/)?.[0] || '',
+                review_date: node.querySelector('.date')?.textContent.trim() || '',
+                reviewer_name: node.querySelector('.id')?.textContent.trim() || '',
                 reviewer_email: '',
-                created_at: new Date().toISOString(),
-                picture_url: '',
+                picture_url: node.querySelector('img')?.src || '',
                 product_id: '',
+                product_link: `https://kwavego.com/products/${productName.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')}`
             }))
         );
 
+        log.info(`Scraped ${reviews.length} reviews for ${productName}`);
         scrapedReviews.push(...reviews);
     },
+
+    async failedRequestHandler({ request }) {
+        log.error(`Request ${request.url} failed multiple times.`);
+    },
+
+    maxRequestsPerCrawl: productNames.length,
+    launchContext: {
+        launchOptions: {
+            headless: true,
+            args: ['--no-sandbox']
+        }
+    }
 });
 
-await crawler.run(
-    uniqueTitles.map(title => ({
-        url: `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(title)}`,
-        userData: { searchTerm: title },
-    }))
-);
-
-// Save matched reviews
-const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-const outputFilePath = path.join('output', `scraped_reviews_${timestamp}.csv`);
-const csvWriter = createObjectCsvWriter({
-    path: outputFilePath,
-    header: [
-        { id: 'product_title', title: 'product_title' },
-        { id: 'body', title: 'body' },
-        { id: 'rating', title: 'rating' },
-        { id: 'reviewer_name', title: 'reviewer_name' },
-        { id: 'reviewer_email', title: 'reviewer_email' },
-        { id: 'created_at', title: 'created_at' },
-        { id: 'picture_url', title: 'picture_url' },
-        { id: 'product_id', title: 'product_id' },
-    ],
-});
-await csvWriter.writeRecords(scrapedReviews);
-log.info(`Scraped reviews saved to ${outputFilePath}`);
-
-// Save failed/mismatched searches
-if (failedSearches.length > 0) {
-    const mismatchedPath = path.join('output', `mismatched_${timestamp}.csv`);
-    fs.writeFileSync(mismatchedPath, ['Product Name', ...failedSearches].join('\n'), 'utf-8');
-    log.info(`Mismatched entries saved to ${mismatchedPath}`);
+// Add search requests
+for (const productName of productNames) {
+    await crawler.addRequests([
+        {
+            url: `https://global.oliveyoung.com/display/search?query=${encodeURIComponent(productName)}`,
+            userData: { productName }
+        }
+    ]);
 }
 
+// Start the crawler
+await crawler.run();
+
+// Save to dataset
+for (const review of scrapedReviews) {
+    await Actor.pushData(review);
+}
+
+log.info('Scraping complete. Reviews saved to dataset.');
 await Actor.exit();
