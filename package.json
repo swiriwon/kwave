@@ -8,6 +8,7 @@
     "apify": "^3.4.0",
     "puppeteer-core": "^19.0.0",
     "csv-writer": "^1.6.0",
+    "@crawlee/core": "^3.13.2",
     "@crawlee/puppeteer": "^3.13.2"
   },
   "scripts": {
