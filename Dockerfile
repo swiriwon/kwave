@@ -16,7 +16,7 @@ USER myuser
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install --quiet --omit=dev --no-optional && \
+RUN npm install && \
     npm install @crawlee/puppeteer@3.13.0 --force && \
     npm list || true
 
