@@ -1,6 +1,6 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
-import { Parser } from 'json2csv';
+import { Parse } from 'json2csv';
 import path from 'path';
 import fs from 'fs';
 import fetch from 'node-fetch';
