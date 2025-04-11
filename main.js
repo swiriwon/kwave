@@ -76,13 +76,13 @@ const crawler = new PuppeteerCrawler({
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
                 const reviews = await page.evaluate(({ productName }) => {
                     const FAKE_NAMES = [
-    'Emma', 'Olivia', 'Ava', 'Isabella', 'Sophia', 'Charlotte', 'Amelia', 'Mia', 'Harper', 'Evelyn',
-    'Liam', 'Noah', 'Oliver', 'Elijah', 'James', 'William', 'Benjamin', 'Lucas', 'Henry', 'Alexander',
-    'Chloe', 'Ella', 'Grace', 'Lily', 'Zoe', 'Nora', 'Scarlett', 'Hannah', 'Aria', 'Layla',
-    'Jack', 'Logan', 'Jackson', 'Levi', 'Sebastian', 'Mateo', 'David', 'Joseph', 'Carter', 'Owen',
-    'Penelope', 'Riley', 'Victoria', 'Madison', 'Eleanor', 'Hazel', 'Aurora', 'Natalie', 'Lucy', 'Savannah',
-    'Leo', 'Wyatt', 'Dylan', 'Isaac', 'Gabriel', 'Julian', 'Lincoln', 'Anthony', 'Hudson', 'Ezra'
-];
+                        'Emma', 'Olivia', 'Ava', 'Isabella', 'Sophia', 'Charlotte', 'Amelia', 'Mia', 'Harper', 'Evelyn',
+                        'Liam', 'Noah', 'Oliver', 'Elijah', 'James', 'William', 'Benjamin', 'Lucas', 'Henry', 'Alexander',
+                        'Chloe', 'Ella', 'Grace', 'Lily', 'Zoe', 'Nora', 'Scarlett', 'Hannah', 'Aria', 'Layla',
+                        'Jack', 'Logan', 'Jackson', 'Levi', 'Sebastian', 'Mateo', 'David', 'Joseph', 'Carter', 'Owen',
+                        'Penelope', 'Riley', 'Victoria', 'Madison', 'Eleanor', 'Hazel', 'Aurora', 'Natalie', 'Lucy', 'Savannah',
+                        'Leo', 'Wyatt', 'Dylan', 'Isaac', 'Gabriel', 'Julian', 'Lincoln', 'Anthony', 'Hudson', 'Ezra'
+                    ];
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     const usedNames = new Set();
 
@@ -138,7 +138,7 @@ const crawler = new PuppeteerCrawler({
 
                 const fields = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
                 const parser = new Parser({ fields });
-                
+
                 // Reordered Reviews to ensure columns are in the exact order
                 const orderedReviews = reviews.map(r => ({
                     title: r.title,
@@ -152,15 +152,15 @@ const crawler = new PuppeteerCrawler({
                     product_id: r.product_id,
                     product_handle: r.product_handle
                 }));
-                
+
                 const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
-                
+
                 const csvHeader = fields.join(',');
                 const csvContent = [csvHeader, ...csvRows].join('\n');  // Correct line break handling
-                
+
                 // Write the CSV file
                 fs.writeFileSync(filePath, csvContent);
-                
+
                 try {
                     // Validate column order in CSV
                     const expectedOrder = fields.join(',');
@@ -173,14 +173,13 @@ const crawler = new PuppeteerCrawler({
                     log.warning(`Actual:   ${actualOrder}`);
                     logMismatch('CSV column order does not match expected fields');
                 }
-                
+
                 // Log file save
                 log.info(`File saved to: ${filePath}`);
-                
+
                 // Push data to Apify's Actor output
                 await Actor.pushData(reviews);
-
-            
+            }
         }
     }
 });
