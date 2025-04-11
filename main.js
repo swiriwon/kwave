@@ -1,13 +1,8 @@
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 import { Parser } from 'json2csv';
-import path from 'path';
 import fs from 'fs';
-const mismatchLogPath = '/home/myuser/app/output/mismatches.log';
-
-function logMismatch(message) {
-    fs.appendFileSync(mismatchLogPath, `${new Date().toISOString()} - ${message}\n`);
-}
+import path from 'path';
 import fetch from 'node-fetch';
 import { parse as csvParse } from 'csv-parse/sync';
 
@@ -18,21 +13,22 @@ const PRODUCT_LIST_URL = input.productListUrl;
 
 log.info('Starting scraper...');
 
-// Define output folder path
 const outputFolder = '/home/myuser/app/output/';
+const mismatchLogPath = path.join(outputFolder, 'mismatches.log');
+
 if (!fs.existsSync(outputFolder)) {
     log.info(`Creating directory: ${outputFolder}`);
     fs.mkdirSync(outputFolder, { recursive: true });
 }
 
-// Fetch and parse product list
+function logMismatch(message) {
+    fs.appendFileSync(mismatchLogPath, `${new Date().toISOString()} - ${message}\n`);
+}
+
 log.info(`Fetching CSV from: ${PRODUCT_LIST_URL}`);
 const response = await fetch(PRODUCT_LIST_URL);
 const csvText = await response.text();
-const records = csvParse(csvText, {
-    columns: true,
-    skip_empty_lines: true,
-});
+const records = csvParse(csvText, { columns: true, skip_empty_lines: true });
 log.info(`CSV column headers: ${Object.keys(records[0]).join(', ')}`);
 
 const productNames = [...new Set(records.map(r => r['Title']).filter(Boolean))];
@@ -43,14 +39,7 @@ const startUrls = productNames.map(name => ({
     userData: { label: 'SEARCH', productName: name }
 }));
 
-const FAKE_NAMES = [
-    'Alice', 'Brian', 'Cara', 'Daniel', 'Ella', 'Frank', 'Grace', 'Hugo', 'Isla', 'Jack',
-    'Katie', 'Leo', 'Maya', 'Noah', 'Olivia', 'Paul', 'Quinn', 'Rose', 'Sam', 'Tina',
-    'Uma', 'Victor', 'Wendy', 'Xander', 'Yara', 'Zane', 'Anna', 'Ben', 'Chloe', 'Dylan',
-    'Eva', 'Finn', 'Gina', 'Harry', 'Ivy', 'James', 'Kara', 'Liam', 'Mila', 'Nate',
-    'Oscar', 'Pia', 'Riley', 'Sophie', 'Tom', 'Ursula', 'Vera', 'Will', 'Xena', 'Yuri',
-    'Zoe', 'Amber', 'Blake', 'Cleo', 'Derek', 'Eliza', 'Felix', 'Gwen', 'Heidi', 'Ian'
-];
+const FAKE_NAMES = [...Array(60).keys()].map(i => `User${i + 1}`);
 
 const crawler = new PuppeteerCrawler({
     maxRequestRetries: 3,
@@ -59,14 +48,7 @@ const crawler = new PuppeteerCrawler({
     launchContext: {
         launchOptions: {
             headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--window-size=1280,1024',
-                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-            ]
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
         }
     },
     async requestHandler({ request, page, enqueueLinks }) {
@@ -77,7 +59,6 @@ const crawler = new PuppeteerCrawler({
                 const linkEl = document.querySelector('.prdt-unit a[href*="/product/detail?prdtNo="]');
                 return linkEl ? linkEl.href : null;
             });
-
             if (productUrl) {
                 log.info('Found product detail link. Enqueuing...');
                 await enqueueLinks({
@@ -86,9 +67,8 @@ const crawler = new PuppeteerCrawler({
                     userData: { productName }
                 });
             } else {
-                const productName = request.url.split('query=')[1]?.replace(/%20/g, ' ');
-                log.warning('No detail link found for product: ' + productName);
-                logMismatch(`No product detail found for: ${productName}`);
+                log.warning(`No detail link found for product: ${productName}`);
+                logMismatch(`Missing detail link for: ${productName}`);
             }
         }
 
@@ -109,16 +89,15 @@ const crawler = new PuppeteerCrawler({
                     };
 
                     const sanitize = str => str.toLowerCase()
-                        .replace(/\s*\/\s*/g, '-')  // replace space-slash-space with dash
-                        .replace(/[()/]/g, '')      // remove parentheses and slashes
-                        .replace(/\s+/g, '-')       // replace space with dash
-                        .replace(/-+/g, '-');       // remove multiple dashes
+                        .replace(/\s*\/\s*/g, '-')
+                        .replace(/[()/]/g, '')
+                        .replace(/\s+/g, '-')
+                        .replace(/-+/g, '-');
 
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
-
                         const nameRaw = getText('.product-review-unit-user-info .review-write-info-writer');
-                        const name = nameRaw?.replace(/^by\.\s*/, '')?.includes('*') ? generateName() : nameRaw;
+                        const name = nameRaw?.includes('*') ? generateName() : nameRaw;
 
                         const date = getText('.product-review-unit-user-info .review-write-info-date');
                         const text = getText('.review-unit-cont-comment');
@@ -128,6 +107,7 @@ const crawler = new PuppeteerCrawler({
                             const rights = box?.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length || 0;
                             return (lefts + rights) * 0.5 || null;
                         })();
+
                         const productUrl = `https://kwave.ai/products/${sanitize(productName)}`;
 
                         return {
@@ -147,18 +127,7 @@ const crawler = new PuppeteerCrawler({
 
                 log.info(`Extracted ${reviews.length} reviews`);
 
-                const fields = [
-                    'title', 
-                    'body', 
-                    'rating', 
-                    'review_date', 
-                    'reviewer_name', 
-                    'reviewer_email', 
-                    'product_url', 
-                    'picture_urls', 
-                    'product_id', 
-                    'product_handle'
-                ];
+                const fields = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
                 const parser = new Parser({ fields });
                 const csv = parser.parse(reviews);
                 const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
@@ -167,6 +136,7 @@ const crawler = new PuppeteerCrawler({
                 await Actor.pushData(reviews);
             } catch (err) {
                 log.error(`Error scraping reviews: ${err.message}`);
+                logMismatch(`Review extraction error for: ${productName} - ${err.message}`);
             }
         }
     }
