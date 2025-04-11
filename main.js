@@ -4,7 +4,7 @@ import { writeFileSync } from 'fs';
 import path from 'path';
 import fs from 'fs';
 import https from 'https';
-import parse from 'csv-parse/lib/sync';
+import { parse } from 'csv-parse/lib/sync';
 
 await Actor.init();
 
