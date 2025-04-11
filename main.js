@@ -75,7 +75,14 @@ const crawler = new PuppeteerCrawler({
             try {
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
                 const reviews = await page.evaluate(({ productName }) => {
-                    const FAKE_NAMES = [...Array(60).keys()].map(i => `User${i + 1}`);
+                    const FAKE_NAMES = [
+    'Emma', 'Olivia', 'Ava', 'Isabella', 'Sophia', 'Charlotte', 'Amelia', 'Mia', 'Harper', 'Evelyn',
+    'Liam', 'Noah', 'Oliver', 'Elijah', 'James', 'William', 'Benjamin', 'Lucas', 'Henry', 'Alexander',
+    'Chloe', 'Ella', 'Grace', 'Lily', 'Zoe', 'Nora', 'Scarlett', 'Hannah', 'Aria', 'Layla',
+    'Jack', 'Logan', 'Jackson', 'Levi', 'Sebastian', 'Mateo', 'David', 'Joseph', 'Carter', 'Owen',
+    'Penelope', 'Riley', 'Victoria', 'Madison', 'Eleanor', 'Hazel', 'Aurora', 'Natalie', 'Lucy', 'Savannah',
+    'Leo', 'Wyatt', 'Dylan', 'Isaac', 'Gabriel', 'Julian', 'Lincoln', 'Anthony', 'Hudson', 'Ezra'
+];
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     const usedNames = new Set();
 
@@ -151,7 +158,7 @@ const crawler = new PuppeteerCrawler({
 
                 // Validate column order in CSV
                 const expectedOrder = fields.join(',');
-                const actualOrder = csv.split('\n')[0];
+                const actualOrder = csv.split('\n')[0].replace(/"/g, '');
                 try {
                     assert.strictEqual(actualOrder, expectedOrder);
                     log.info('✅ CSV column order verified by unit test.');
