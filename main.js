@@ -2,8 +2,6 @@ import { Actor } from 'apify';
 import { PuppeteerCrawler, Dataset, log } from 'crawlee';
 import { parse } from 'csv-parse/sync';
 import fetch from 'node-fetch';
-import fs from 'fs/promises';
-import path from 'path';
 
 await Actor.init();
 
@@ -17,12 +15,18 @@ if (!PRODUCT_LIST_URL) {
 log.info(`Fetching CSV from: ${PRODUCT_LIST_URL}`);
 const response = await fetch(PRODUCT_LIST_URL);
 const csvText = await response.text();
+
+// ✅ Replace column title with correct one if different
 const records = parse(csvText, {
     columns: true,
     skip_empty_lines: true,
 });
 
-const productNames = [...new Set(records.map(row => row['2. column 2']).filter(Boolean))];
+// 🔧 Use a console log to inspect column names if needed
+const firstRow = records[0];
+log.info('Column keys in first row:', Object.keys(firstRow));
+
+const productNames = [...new Set(records.map(row => row['title']).filter(Boolean))];
 log.info(`Parsed ${productNames.length} unique product names.`);
 
 const startUrls = productNames.map(name => ({
@@ -35,54 +39,51 @@ const crawler = new PuppeteerCrawler({
         const { searchName } = request.userData;
         log.info(`Searching for: ${searchName}`);
 
-        const noResult = await page.$eval('body', el => el.innerText.includes("There are no search results"));
-        if (noResult) {
+        const bodyText = await page.content();
+        if (bodyText.includes("There are no search results")) {
             log.warning(`No result for: ${searchName}`);
             return;
         }
 
-        const productLinks = await page.$$eval('ul.prd_list_type1 > li > a', (links) =>
+        const productLinks = await page.$$eval('ul.prd_list_type1 > li > a', links =>
             links.map(link => ({
                 title: link.innerText,
                 href: link.getAttribute('href'),
             }))
         );
 
-        const matchingLink = productLinks.find(p => p.title.includes(searchName));
-        if (!matchingLink || !matchingLink.href) {
-            log.warning(`No matching link found for: ${searchName}`);
+        const match = productLinks.find(p => p.title.includes(searchName));
+        if (!match || !match.href) {
+            log.warning(`No matching product for: ${searchName}`);
             return;
         }
 
-        const url = new URL(matchingLink.href, 'https://global.oliveyoung.com');
+        const url = new URL(match.href, 'https://global.oliveyoung.com');
         const productId = url.searchParams.get('prdtNo');
 
         if (!productId) {
-            log.warning(`No product ID found for: ${searchName}`);
+            log.warning(`Product ID not found for: ${searchName}`);
             return;
         }
 
         const productUrl = `https://global.oliveyoung.com/product/detail?prdtNo=${productId}`;
-        log.info(`Enqueuing product page: ${productUrl}`);
-        await request.queue.addRequest({ url: productUrl, userData: { productId, searchName }, label: 'DETAIL' });
-    },
+        log.info(`Enqueuing product detail page: ${productUrl}`);
 
-    async requestHandlerTimeout({ page, request }) {
-        log.warning(`Request timed out: ${request.url}`);
-    },
-
-    async requestHandlerFailed({ request }) {
-        log.warning(`Request failed: ${request.url}`);
+        await request.queue.addRequest({
+            url: productUrl,
+            userData: { searchName, productId },
+            label: 'DETAIL'
+        });
     },
 
     async failedRequestHandler({ request }) {
-        log.error(`Failed after retries: ${request.url}`);
+        log.error(`Failed to process: ${request.url}`);
     },
 
     requestHandler: async ({ request, page }) => {
         if (request.label !== 'DETAIL') return;
 
-        const { productId, searchName } = request.userData;
+        const { searchName, productId } = request.userData;
 
         const reviews = await page.$$eval('.review_list ul li', nodes => {
             return nodes.map((el, i) => ({
@@ -115,6 +116,6 @@ const crawler = new PuppeteerCrawler({
 });
 
 await crawler.run(startUrls);
-
 log.info('Scraping complete. Reviews saved to dataset.');
+
 await Actor.exit();
