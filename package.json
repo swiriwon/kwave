@@ -6,7 +6,7 @@
   },
   "dependencies": {
     "apify": "^3.4.0",
-    "csv-writer": "^1.6.0"
+    "csv-writer": "^1.6.0",
     "csv-parse": "^5.5.0",
     "crawlee": "^3.13.2",
     "puppeteer": "^19.11.1"
