@@ -8,7 +8,7 @@
     "apify": "^3.4.0",
     "puppeteer-core": "^19.0.0",
     "csv-writer": "^1.6.0",
-    "@crawlee/puppeteer": "^3.13.0"
+    "@crawlee/puppeteer": "^3.13.2"
   },
   "scripts": {
     "start": "node main.js"
