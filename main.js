@@ -62,39 +62,48 @@ const crawler = new PuppeteerCrawler({
         if (label === 'DETAIL') {
             try {
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
-
+                
                 const reviews = await page.evaluate((productTitle) => {
                     const sanitize = (str) =>
                         str.toLowerCase()
                             .replace(/[\s\/]+/g, '-')
                             .replace(/[()]/g, '')
                             .replace(/[^a-z0-9\-]/g, '');
-
-                    const generateName = (partial) => {
-                        const names = ['Aaron', 'Bella', 'Cameron', 'Diana', 'Ethan', 'Fiona', 'George', 'Hannah', 'Ivan', 'Julia', 'Karan', 'Luna', 'Mason', 'Nina', 'Oscar', 'Penny', 'Quinn', 'Ryan', 'Sophia', 'Tyler'];
-                        const index = partial.toLowerCase().charCodeAt(0) % names.length;
-                        return names[index];
+                
+                    const fakeNames = [
+                        'Ariana', 'Blake', 'Carter', 'Daisy', 'Elias', 'Fiona', 'Gavin', 'Hazel',
+                        'Ian', 'Jade', 'Karan', 'Lana', 'Milo', 'Nora', 'Owen', 'Paige', 'Quincy', 'Riley',
+                        'Sophie', 'Troy', 'Uma', 'Vera', 'Wyatt', 'Xena', 'Yara', 'Zane',
+                        'Alexis', 'Bryce', 'Chloe', 'Derek', 'Ella', 'Felix', 'Grace', 'Hunter',
+                        'Isla', 'Jake', 'Kylie', 'Liam', 'Maya', 'Noah', 'Olivia', 'Piper',
+                        'Quinn', 'Ryder', 'Stella', 'Theo', 'Uriel', 'Violet', 'Wes', 'Xavier', 'Yasmine', 'Zara'
+                    ];
+                
+                    const getFakeName = (prefix) => {
+                        const seed = prefix.toLowerCase().split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+                        return fakeNames[seed % fakeNames.length];
                     };
-
+                
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (sel) => el.querySelector(sel)?.innerText?.trim() || '';
-                        let nameRaw = getText('.product-review-unit-user-info .review-write-info-writer').replace(/^by\.\s*/i, '');
-                        if (nameRaw.length < 3) nameRaw = generateName(nameRaw);
-
+                        const masked = getText('.product-review-unit-user-info .review-write-info-writer').replace(/^by\.\s*/i, '');
+                        const prefix = masked.replace(/\*/g, '').slice(0, 2);
+                        const reviewerName = getFakeName(prefix || 'xx');
+                
                         const stars = (() => {
                             const box = el.querySelector('.review-star-rating');
                             const lefts = box?.querySelectorAll('.wrap-icon-star .icon-star.left.filled').length || 0;
                             const rights = box?.querySelectorAll('.wrap-icon-star .icon-star.right.filled').length || 0;
                             return (lefts + rights) * 0.5 || null;
                         })();
-
+                
                         return {
                             title: productTitle,
                             body: getText('.review-unit-cont-comment'),
                             rating: stars,
                             review_date: getText('.product-review-unit-user-info .review-write-info-date'),
-                            reviewer_name: nameRaw,
+                            reviewer_name: reviewerName,
                             reviewer_email: '',
                             product_url: `https://kwave.ai/products/${sanitize(productTitle)}`,
                             picture_urls: (() => {
