@@ -138,7 +138,10 @@ const crawler = new PuppeteerCrawler({
         
                 const fields = ['title', 'body', 'rating', 'review_date', 'reviewer_name', 'reviewer_email', 'product_url', 'picture_urls', 'product_id', 'product_handle'];
                 const parser = new Parser({ fields });
-        
+                
+                // Define filePath variable before using it
+                const filePath = path.join(outputFolder, 'reviews_data.csv');  // Ensure you define filePath with the output directory and the desired file name
+                
                 const orderedReviews = reviews.map(r => ({
                     title: r.title,
                     body: r.body,
@@ -151,15 +154,13 @@ const crawler = new PuppeteerCrawler({
                     product_id: r.product_id,
                     product_handle: r.product_handle
                 }));
-        
-                // Define filePath variable before using it
-                const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
-        
+                
+                // Ensure columns are in the desired order
                 const csvRows = orderedReviews.map(r => fields.map(f => r[f]).join(',')); // Ensure columns are in the desired order
         
                 const csvHeader = fields.join(',');
                 const csvContent = [csvHeader, ...csvRows].join(',');  // Keep the join(',') for proper CSV formatting
-        
+        try {
                 // Write the CSV file
                 fs.writeFileSync(filePath, csvContent);
         
