@@ -150,17 +150,22 @@ const crawler = new PuppeteerCrawler({
                     product_id: r.product_id,
                     product_handle: r.product_handle
                 }));
-                
-                // Ensure columns are in the desired order
-                const csvRows = orderedReviews.map(r => fields.map(field => r[field]).join(','));
-                
-                // Write the CSV file
-                const csvHeader = fields.join(',');
-                const csvContent = [csvHeader, ...csvRows].join('\n');
-                fs.writeFileSync(filePath, csvContent);
-
+                const csv = parser.parse(orderedReviews);
                 const filePath = path.join(outputFolder, `scraping_data_${new Date().toISOString().split('T')[0]}.csv`);
-                fs.writeFileSync(filePath, csv);
+                const csvHeader = fields.join(',');
+                const escapeCSV = (value) => {
+    if (value == null) return '';
+    const str = String(value);
+    return /[",
+]/.test(str) ? `"${str.replace(/"/g, '""')}` : str;
+};
+
+const csvRows = orderedReviews.map(r =>
+    fields.map(f => escapeCSV(r[f])).join(',')
+);
+                const csvContent = [csvHeader, ...csvRows].join('
+');
+                fs.writeFileSync(filePath, csvContent);
                 log.info(`File saved to: ${filePath}`);
                 await Actor.pushData(reviews);
 
