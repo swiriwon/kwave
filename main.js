@@ -99,7 +99,7 @@ const crawler = new PuppeteerCrawler({
                         .normalize('NFD')                  // Normalize accented chars like è → e + ̀
                         .replace(/[\u0300-\u036f]/g, '')
                         .replace(/\s*\/\s*/g, '-')         // Replace slashes with hyphen
-                        .replace(/[\[\]★+#().,'"òÖ]/g, '')   // Remove unwanted symbols including brackets
+                        .replace(/[\[\]★+#().,'"òÖÄ]/g, '')   // Remove unwanted symbols including brackets
                         .replace(/\s+/g, '-')              // Convert spaces to hyphen
                         .replace(/-+/g, '-')               // Normalize repeated hyphens
                         .replace(/^\-+|\-+$/g, '');        // Trim hyphens from start/end
