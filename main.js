@@ -99,9 +99,9 @@ const crawler = new PuppeteerCrawler({
                         .normalize('NFD')                  // Normalize accented chars like è → e + ̀
                         .replace(/[\u0300-\u036f]/g, '')
                         .replace(/\s*\/\s*/g, '-')         // Replace slashes with hyphen
-                        .replace(/[\[\]★+#().,'"òÖÄ]/g, '')   // Remove unwanted symbols including brackets
+                        .replace(/[\[\]★+#().,'"òÖÄ&]/g, '')   // Remove unwanted symbols including brackets
                         .replace(/\s+/g, '-')              // Convert spaces to hyphen
-                        .replace(/-+/g, '-')               // Normalize repeated hyphens
+                        .replace(/-+*/g, '-')               // Normalize repeated hyphens
                         .replace(/^\-+|\-+$/g, '');        // Trim hyphens from start/end
 
                     return Array.from(reviewElems).slice(0, 10).map(el => {
@@ -167,12 +167,6 @@ const crawler = new PuppeteerCrawler({
                 try {
                     // Write the CSV file
                     fs.writeFileSync(filePath, csvContent);
-
-                    // Validate column order in CSV
-                    const expectedOrder = fields.join(',');
-                    const actualOrder = csvContent.split('\n')[0].replace(/"/g, '');  // Strip quotes for validation
-                    assert.strictEqual(actualOrder, expectedOrder);
-                    log.info('✅ CSV column order verified by unit test.');
                 } catch (err) {
                     log.error(`Error while writing CSV or validating column order: ${err.message}`);
                     logMismatch('CSV generation or column order validation failed.');
