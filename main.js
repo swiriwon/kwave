@@ -97,11 +97,12 @@ const crawler = new PuppeteerCrawler({
 
                     const sanitize = str => str.toLowerCase()
                         .normalize('NFD')                  // Normalize accented chars like è → e + ̀
-                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/[\u0300-\u036f]/g, '')   // Remove combining marks (accents)
+                        .replace(/\*/g, '-')               // Convert * directly to hyphen
                         .replace(/\s*\/\s*/g, '-')         // Replace slashes with hyphen
                         .replace(/[\[\]★+#().,'"òÖÄ&]/g, '')   // Remove unwanted symbols including brackets
                         .replace(/\s+/g, '-')              // Convert spaces to hyphen
-                        .replace(/-+*/g, '-')               // Normalize repeated hyphens
+                        .replace(/-+/g, '-')               // Normalize repeated hyphens
                         .replace(/^\-+|\-+$/g, '');        // Trim hyphens from start/end
 
                     return Array.from(reviewElems).slice(0, 10).map(el => {
