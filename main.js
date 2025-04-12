@@ -97,7 +97,7 @@ const crawler = new PuppeteerCrawler({
 
                     const sanitize = str => str.toLowerCase()
                         .replace(/\s*\/\s*/g, '-')         // Replace spaces around slashes with hyphen
-                        .replace(/[(),/★]/g, '')           // Remove unwanted characters (parentheses, commas, slashes, and stars)
+                        .replace(/[(),/★\+]/+/g, '')           // Remove unwanted characters (parentheses, commas, slashes, and stars)
                         .replace(/['"]/g, '')              // Replace quotation mark
                         .replace(/\s+/g, '-')              // Replace multiple spaces with a single hyphen
                         .replace(/-+/g, '-')               // Ensure multiple hyphens are replaced with a single one
