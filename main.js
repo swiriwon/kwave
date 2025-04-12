@@ -96,14 +96,13 @@ const crawler = new PuppeteerCrawler({
                     };
 
                     const sanitize = str => str.toLowerCase()
-                        .replace(/\s*\/\s*/g, '-')         // Replace spaces around slashes with hyphen
-                        .replace(/[(),/★\+]+/g, '')           // Remove unwanted characters (parentheses, commas, slashes, and stars)
+                        .replace(/\s*\/\s*/g, '-')        // Replace spaces around slashes with hyphen
+                        .replace(/[(),/★\+]+/g, '')       // Remove unwanted characters (parentheses, commas, slashes, stars, and plus signs)
                         .replace(/\./g, '-')               // Replace periods with hyphen
                         .replace(/\s+/g, '-')              // Replace multiple spaces with a single hyphen
                         .replace(/-+/g, '-')               // Ensure multiple hyphens are replaced with a single one
                         .replace(/['']+/g, '')             // Remove single quotes
-                        .replace(/[""]+/g, '')             // Remove double quotes
-                        .replace(/^\s*★\s*|\s*★\s*$/g, '');// Remove leading and trailing stars with spaces
+                        .replace(/^\s*★\s*|\s*★\s*$/g, ''); // Remove leading and trailing stars with spaces
 
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
