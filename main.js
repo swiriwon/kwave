@@ -98,6 +98,7 @@ const crawler = new PuppeteerCrawler({
                     const sanitize = str => str.toLowerCase()
                         .normalize('NFD')                  // Normalize accented chars like è → e + ̀
                         .replace(/[\u0300-\u036f]/g, '')   // Remove combining marks (accents)
+                        .replace(/[:]/g, '-')               // Replace colons with hyphen
                         .replace(/\*/g, '-')               // Convert * directly to hyphen
                         .replace(/\s*\/\s*/g, '-')         // Replace slashes with hyphen
                         .replace(/[\[\]★+#().,'"òÖÄ&]/g, '')   // Remove unwanted symbols including brackets
