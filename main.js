@@ -96,20 +96,23 @@ const crawler = new PuppeteerCrawler({
                     };
 
                     const sanitize = str => str.toLowerCase()
-                        .normalize('NFD')                           // Normalize accented characters
-                        .replace(/[\u0300-\u036f]/g, '')            // Strip accent marks
-                        .replace(/:\s*/g, '-')                      // Colon to hyphen
-                        .replace(/\*/g, '-')                        // Asterisk to hyphen
-                        .replace(/\+/g, '-')                        // Plus to hyphen
-                        .replace(/\(/g, '-')                        // Open paren to hyphen
-                        .replace(/\)/g, '')                         // Close paren removed
-                        .replace(/\s*\/\s*/g, '-')                  // Slash with spaces to hyphen
-                        .replace(/[\[\]★#.,'"òÖÄ&]/g, '')           // Remove unwanted symbols
-                        .replace(/\s+/g, '-')                       // Spaces to hyphen
-                        .replace(/-+/g, '-')                        // Collapse multiple hyphens
-                        .replace(/^\-+|\-+$/g, '')                  // Trim hyphens
-                        .replace(/(\d)\.(\d)/g, '$1-$2');           // Dot between digits to hyphen
-
+                        .normalize('NFD')                             // Normalize accented characters
+                        .replace(/[\u0300-\u036f]/g, '')              // Strip accent marks
+                        .replace(/\bno\.(\d+)/gi, 'no-$1')            // NO.1 → no-1
+                        .replace(/\brank\.(\d+)/gi, 'rank-$1')        // RANK.3 → rank-3
+                        .replace(/\btop\.(\d+)/gi, 'top-$1')          // TOP.5 → top-5
+                        .replace(/(\d)\.(\d)/g, '$1-$2')              // Dot between digits to hyphen
+                        .replace(/:\s*/g, '-')                        // Colon to hyphen
+                        .replace(/\*/g, '-')                          // Asterisk to hyphen
+                        .replace(/\+/g, '-')                          // Plus to hyphen
+                        .replace(/\(/g, '-')                          // Open paren to hyphen
+                        .replace(/\)/g, '')                           // Close paren removed
+                        .replace(/\s*\/\s*/g, '-')                    // Slash with spaces to hyphen
+                        .replace(/[\[\]★#.,'"òÖÄ&]/g, '')             // Remove unwanted symbols
+                        .replace(/\s+/g, '-')                         // Spaces to hyphen
+                        .replace(/-+/g, '-')                          // Collapse multiple hyphens
+                        .replace(/^\-+|\-+$/g, '');                   // Trim hyphens
+                    
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
                         const getImages = () => Array.from(el.querySelectorAll('img')).map(img => img.src).join(',');
