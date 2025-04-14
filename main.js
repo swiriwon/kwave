@@ -96,15 +96,16 @@ const crawler = new PuppeteerCrawler({
                     };
 
                     const sanitize = str => str.toLowerCase()
-                        .normalize('NFD')                  // Normalize accented chars like è → e + ̀
-                        .replace(/[\u0300-\u036f]/g, '')   // Remove combining marks (accents)
-                        .replace(/[:]/g, '-')               // Replace colons with hyphen
-                        .replace(/\*/g, '-')               // Convert * directly to hyphen
-                        .replace(/\s*\/\s*/g, '-')         // Replace slashes with hyphen
-                        .replace(/[\[\]★+#().,'"òÖÄ&]/g, '')   // Remove unwanted symbols including brackets
-                        .replace(/\s+/g, '-')              // Convert spaces to hyphen
-                        .replace(/-+/g, '-')               // Normalize repeated hyphens
-                        .replace(/^\-+|\-+$/g, '');        // Trim hyphens from start/end
+                        .normalize('NFD')                        // Normalize accented characters (è → e)
+                        .replace(/[\u0300-\u036f]/g, '')         // Remove accent marks
+                        .replace(/:\s*/g, '-')                   // Replace colon with hyphen
+                        .replace(/\*/g, '-')                     // Convert * to hyphen
+                        .replace(/\s*\/\s*/g, '-')               // Replace slash with hyphen
+                        .replace(/[\[\]★+#().,'"òÖÄ&]/g, '')     // Remove unwanted characters
+                        .replace(/\s+/g, '-')                    // Convert spaces to hyphen
+                        .replace(/-+/g, '-')                     // Replace multiple hyphens with one
+                        .replace(/^\-+|\-+$/g, '')               // Trim leading/trailing hyphens
+                        .replace(/(\d)\.(\d)/g, '$1-$2');        // Replace dot between digits (e.g. 3.8 → 3-8)
 
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
