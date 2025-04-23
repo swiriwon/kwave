@@ -1,0 +1,7 @@
+{
+  "env": {},
+  "name": "type-search",
+  "version": "0.1",
+  "buildTag": "latest",
+  "main": "type-search.js"
+}
