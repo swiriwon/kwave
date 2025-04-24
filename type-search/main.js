@@ -1,54 +1,72 @@
-// kwave/type-search/main.js
+// FILE: kwave/type-search/main.js
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
+import fs from 'fs';
+import path from 'path';
 
 await Actor.init();
 const input = await Actor.getInput();
-const startUrls = input.startUrls || [];
 
-log.info('Starting type-search crawler...');
+const urls = input.urls;
+if (!Array.isArray(urls) || urls.length === 0) {
+    throw new Error('Input must include a "urls" array.');
+}
+
+log.info('Starting scraper...');
+
+const outputFolder = '/home/myuser/app/output/';
+if (!fs.existsSync(outputFolder)) {
+    log.info(`Creating directory: ${outputFolder}`);
+    fs.mkdirSync(outputFolder, { recursive: true });
+}
+
+const outputFile = path.join(outputFolder, 'type_search_results.csv');
 
 const crawler = new PuppeteerCrawler({
-    maxConcurrency: 5,
+    maxRequestRetries: 2,
     requestHandlerTimeoutSecs: 120,
     launchContext: {
         launchOptions: {
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        },
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        }
     },
     async requestHandler({ page, request, enqueueLinks }) {
-        log.info(`Processing: ${request.url}`);
+        const allResults = [];
 
-        // Click "MORE" until hidden
-        while (await page.$eval('#moreBtnWrap', el => el.style.display !== 'none').catch(() => false)) {
-            log.info('Clicking MORE...');
+        while (true) {
+            const items = await page.$$eval('.prd_info .brand-info', elements => {
+                return elements.map(el => {
+                    const brand = el.querySelector('dt')?.innerText?.trim() || '';
+                    const name = el.querySelector('dd')?.innerText?.trim() || '';
+                    return { brand, name };
+                });
+            });
+
+            allResults.push(...items);
+
+            const hasMore = await page.$('.btnMore');
+            if (!hasMore) break;
             await Promise.all([
-                page.click('#moreBtnWrap button'),
-                page.waitForTimeout(2000),
+                page.waitForNavigation({ waitUntil: 'networkidle0' }),
+                page.click('.btnMore')
             ]);
         }
 
-        const items = await page.evaluate(() => {
-            const data = [];
-            document.querySelectorAll('.prd-list li').forEach(item => {
-                const brand = item.querySelector('.brand-info dt')?.innerText?.trim();
-                const name = item.querySelector('.brand-info dd')?.innerText?.trim();
-                const url = item.querySelector('a')?.href?.trim();
+        log.info(`Extracted ${allResults.length} products from: ${request.url}`);
 
-                if (brand && name && url) {
-                    data.push({ brand, name, url });
-                }
-            });
-            return data;
-        });
+        // Save to file and Apify dataset
+        const rows = allResults.map(r => `${r.brand},${r.name}`).join('\n');
+        const header = 'brand,product_name';
+        const content = `${header}\n${rows}`;
 
-        log.info(`Found ${items.length} products.`);
-        for (const item of items) {
-            await Actor.pushData(item);
-        }
-    },
+        fs.writeFileSync(outputFile, content);
+        await Actor.pushData(allResults);
+
+        log.info(`Saved file to: ${outputFile}`);
+    }
 });
 
+const startUrls = urls.map(url => ({ url, userData: { label: 'CATEGORY' } }));
 await crawler.run(startUrls);
 await Actor.exit();
