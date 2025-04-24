@@ -1,46 +1,54 @@
+// kwave/type-search/main.js
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 
 await Actor.init();
-
 const input = await Actor.getInput();
-const urls = input?.urls || [];
-if (!urls.length) throw new Error('No URLs provided in input!');
+const startUrls = input.startUrls || [];
+
+log.info('Starting type-search crawler...');
 
 const crawler = new PuppeteerCrawler({
-    maxConcurrency: 1,
-    requestHandlerTimeoutSecs: 180,
-    async requestHandler({ page, request }) {
-        log.info(`Scraping: ${request.url}`);
+    maxConcurrency: 5,
+    requestHandlerTimeoutSecs: 120,
+    launchContext: {
+        launchOptions: {
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        },
+    },
+    async requestHandler({ page, request, enqueueLinks }) {
+        log.info(`Processing: ${request.url}`);
 
-        // Click "MORE" until all products are loaded
-        let loadMore = true;
-        while (loadMore) {
-            loadMore = await page.evaluate(() => {
-                const moreBtn = document.querySelector('.btn-more');
-                if (moreBtn && !moreBtn.classList.contains('disabled')) {
-                    moreBtn.click();
-                    return true;
-                }
-                return false;
-            });
-            if (loadMore) await page.waitForTimeout(2000);
+        // Click "MORE" until hidden
+        while (await page.$eval('#moreBtnWrap', el => el.style.display !== 'none').catch(() => false)) {
+            log.info('Clicking MORE...');
+            await Promise.all([
+                page.click('#moreBtnWrap button'),
+                page.waitForTimeout(2000),
+            ]);
         }
 
-        // Extract brand and product name
-        const products = await page.$$eval('.brand-info', elements => {
-            return elements.map(el => {
-                const brand = el.querySelector('dt')?.innerText.trim();
-                const product = el.querySelector('dd')?.innerText.trim();
-                return { brand, product };
+        const items = await page.evaluate(() => {
+            const data = [];
+            document.querySelectorAll('.prd-list li').forEach(item => {
+                const brand = item.querySelector('.brand-info dt')?.innerText?.trim();
+                const name = item.querySelector('.brand-info dd')?.innerText?.trim();
+                const url = item.querySelector('a')?.href?.trim();
+
+                if (brand && name && url) {
+                    data.push({ brand, name, url });
+                }
             });
+            return data;
         });
 
-        for (const item of products) {
+        log.info(`Found ${items.length} products.`);
+        for (const item of items) {
             await Actor.pushData(item);
         }
     },
 });
 
-await crawler.run(urls.map(url => ({ url })));
+await crawler.run(startUrls);
 await Actor.exit();
