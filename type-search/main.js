@@ -5,9 +5,11 @@ import path from 'path';
 
 await Actor.init();
 
+// ✅ Fix: getInput() should provide `startUrl` from Apify input
 const input = await Actor.getInput();
-const START_URL = input.startUrl;
+const START_URL = input?.startUrl;
 
+// ✅ Validate input before proceeding
 if (!START_URL || !START_URL.startsWith('http')) {
     throw new Error('Missing or invalid input URL. Please provide a full URL in the input field as "startUrl".');
 }
