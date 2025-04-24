@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd type-search && npm install",
+  "startCommand": "cd type-search && npm start",
+  "mountDir": "type-search"
+}
