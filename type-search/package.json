@@ -1,12 +1,13 @@
 {
   "name": "type-search",
   "version": "1.0.0",
+  "description": "Apify actor to scrape brand and product names from OliveYoung",
   "type": "module",
+  "scripts": {
+    "start": "node type-search.js"
+  },
   "dependencies": {
     "apify": "^3.4.0",
     "@crawlee/puppeteer": "^3.13.2"
-  },
-  "scripts": {
-    "start": "node type-search.js"
   }
 }
