@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 
 await Actor.init();
-const input = await Actor.getInput();
+const startUrl = input.startUrl;
 
 const urls = input.urls;
 if (!Array.isArray(urls) || urls.length === 0) {
