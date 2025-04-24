@@ -1,3 +1,5 @@
+// filename: main.js
+
 import { Actor } from 'apify';
 import { PuppeteerCrawler, log } from '@crawlee/puppeteer';
 import fs from 'fs';
@@ -5,12 +7,10 @@ import path from 'path';
 
 await Actor.init();
 
-// ✅ Fix: getInput() should provide `startUrl` from Apify input
 const input = await Actor.getInput();
-const START_URL = input?.startUrl;
+const START_URL = input.startUrl;
 
-// ✅ Validate input before proceeding
-if (!START_URL || !START_URL.startsWith('http')) {
+if (!START_URL || typeof START_URL !== 'string' || !START_URL.startsWith('http')) {
     throw new Error('Missing or invalid input URL. Please provide a full URL in the input field as "startUrl".');
 }
 
@@ -35,34 +35,35 @@ const crawler = new PuppeteerCrawler({
     },
     requestHandlerTimeoutSecs: 90,
     navigationTimeoutSecs: 60,
-    async requestHandler({ page, request, enqueueLinks }) {
+    async requestHandler({ page, request }) {
         log.info(`Processing ${request.url}`);
 
-        await page.waitForSelector('.brand-info', { timeout: 30000 });
+        while (true) {
+            await page.waitForSelector('.brand-info', { timeout: 30000 });
 
-        const data = await page.evaluate(() => {
-            const rows = [];
-            document.querySelectorAll('.brand-info').forEach((el) => {
-                const brand = el.querySelector('dt')?.innerText?.trim() || '';
-                const product = el.querySelector('dd')?.innerText?.trim() || '';
-                if (brand && product) {
-                    rows.push({ url: window.location.href, brand, product });
-                }
+            const data = await page.evaluate(() => {
+                const rows = [];
+                document.querySelectorAll('.brand-info').forEach((el) => {
+                    const brand = el.querySelector('dt')?.innerText?.trim() || '';
+                    const product = el.querySelector('dd')?.innerText?.trim() || '';
+                    if (brand && product) {
+                        rows.push({ url: window.location.href, brand, product });
+                    }
+                });
+                return rows;
             });
-            return rows;
-        });
 
-        collectedData.push(...data);
+            collectedData.push(...data);
 
-        const moreBtn = await page.$('.more .btn');
-        if (moreBtn) {
+            const moreBtn = await page.$('.more .btn');
+            if (!moreBtn) break;
+
             log.info('Clicking MORE button...');
             await moreBtn.evaluate(el => el.click());
-            await page.waitForTimeout(2000); // Let page update
-            await request.retry();
-        } else {
-            log.info('No MORE button found, finishing.');
+            await page.waitForTimeout(3000);
         }
+
+        log.info('Finished loading all products.');
     },
 });
 
