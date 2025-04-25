@@ -76,12 +76,17 @@ const crawler = new PuppeteerCrawler({
                 await page.waitForSelector('.product-review-unit.isChecked', { timeout: 30000 });
                 const reviews = await page.evaluate(({ productName }) => {
                     const FAKE_NAMES = [
-                        'Emma', 'Olivia', 'Ava', 'Isabella', 'Sophia', 'Charlotte', 'Amelia', 'Mia', 'Harper', 'Evelyn',
-                        'Liam', 'Noah', 'Oliver', 'Elijah', 'James', 'William', 'Benjamin', 'Lucas', 'Henry', 'Alexander',
-                        'Chloe', 'Ella', 'Grace', 'Lily', 'Zoe', 'Nora', 'Scarlett', 'Hannah', 'Aria', 'Layla',
-                        'Jack', 'Logan', 'Jackson', 'Levi', 'Sebastian', 'Mateo', 'David', 'Joseph', 'Carter', 'Owen',
-                        'Penelope', 'Riley', 'Victoria', 'Madison', 'Eleanor', 'Hazel', 'Aurora', 'Natalie', 'Lucy', 'Savannah',
-                        'Leo', 'Wyatt', 'Dylan', 'Isaac', 'Gabriel', 'Julian', 'Lincoln', 'Anthony', 'Hudson', 'Ezra'
+                        'Emma', 'Olivia', 'Ava', 'Isabella', 'Sophia', 'Charlotte', 'Amelia', 'Mia', 'Daisy', 'Evelyn',
+                        'Liam', 'Sadie', 'Oliver', 'Elijah', 'Jane', 'William', 'Josie', 'Skylar', 'Natalie', 'Alexander',
+                        'Chloe', 'Ella', 'Grace', 'Lily', 'Leah', 'Nora', 'Scarlett', 'Hannah', 'Aria', 'Layla', 'Esther',
+                        'Lainey', 'Logan', 'Adeline', 'Kennedy', 'Sebastian', 'Mateo', 'Lucia', 'Leilani', 'Carter', 'Owen',
+                        'Penelope', 'Riley', 'Victoria', 'Emery', 'Eleanor', 'Hazel', 'Aurora', 'Natalie', 'Lucy', 'Savannah',
+                        'Maria', 'Caroline', 'Dylan', 'Maeve', 'Gabriel', 'Sarah', 'Paisley', 'Eden', 'Iris', 'Ezra', 'Quinn',
+                        'Aaliyah', 'Brooklyn', 'Aaliyah', 'Hailey', 'Cora', 'Madeline', 'Natalia', 'Lydia', 'Clara', 'Allison',
+                        'Millie', 'Melody', 'Serenity', 'Bella', 'Juniper', 'Samantha', 'Elliana', 'Eliza', 'Rylee', 'Nevaeh',
+                        'Hadley', 'Alaia', 'Julia', 'Amara', 'Rose', 'Ashley', 'Remi', 'Georgia', 'Amira', 'Margaret', 'Mary',
+                        'Arya', 'Sienna', 'Summer', 'Peyton', 'Sage', 'Valerie', 'Magnolia', 'Emersyn', 'Catalina', 'Margot', 
+                        'Everleigh', 'Sloane', 'Alina', 'Oakley', 'Valeria', 'Blakely', 'Kehlani', 'Oaklynn', 'Ximena', 'Juliette',
                     ];
                     const reviewElems = document.querySelectorAll('.product-review-unit.isChecked');
                     const usedNames = new Set();
