@@ -111,13 +111,14 @@ const crawler = new PuppeteerCrawler({
                         .replace(/\s*\/\s*/g, '-')                   // Slash with spaces to hyphen
                         .replace(/(\d)\.(\d)/g, '$1-$2')             // Dot between digits to hyphen
                         .replace(/\./g, '-')                         // All other periods to hyphen
-                        .replace(/[\[\]★#,'"òÖÄ&%™]/g=><?, '')             // Remove unwanted symbols
+                        .replace(/[\[\]★#,'"òÖÄ&%™]/g, '')           // Remove unwanted symbols
                         .replace(/\bno-?\.?(\d+)/gi, 'no-$1')        // "No.1" → "no-1"
                         .replace(/\btop-?\.?(\d+)/gi, 'top-$1')      // "Top.5" → "top-5"
                         .replace(/\brank-?\.?(\d+)/gi, 'rank-$1')    // "Rank.3" → "rank-3"
                         .replace(/\s+/g, '-')                        // Spaces to hyphen
                         .replace(/-+/g, '-')                         // Collapse multiple hyphens
                         .replace(/^\-+|\-+$/g, '');                  // Trim hyphens
+                        .replace(/[<=>?]/g, '')
                     
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
