@@ -118,7 +118,6 @@ const crawler = new PuppeteerCrawler({
                         .replace(/\s+/g, '-')                        // Spaces to hyphen
                         .replace(/-+/g, '-')                         // Collapse multiple hyphens
                         .replace(/^\-+|\-+$/g, '');                  // Trim hyphens
-                        .replace(/[<=>?]/g, '')
                     
                     return Array.from(reviewElems).slice(0, 10).map(el => {
                         const getText = (selector) => el.querySelector(selector)?.innerText?.trim() || null;
